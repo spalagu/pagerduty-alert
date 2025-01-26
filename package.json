@@ -1,0 +1,86 @@
+{
+    "name": "pagerduty-alert",
+    "version": "1.0.0",
+    "description": "PagerDuty Alert Desktop App",
+    "author": {
+        "name": "Your Name",
+        "email": "your.email@example.com"
+    },
+    "main": "dist/main.js",
+    "scripts": {
+        "start": "electron .",
+        "dev:webpack": "cross-env NODE_ENV=development webpack --mode development --watch",
+        "dev:electron": "cross-env NODE_ENV=development electron .",
+        "dev:start": "concurrently \"npm run dev:webpack\" \"wait-on dist/main.js && npm run dev:electron\"",
+        "build": "cross-env NODE_ENV=production webpack --mode production",
+        "dist:mac": "npm run build && electron-builder --mac",
+        "dist:win": "npm run build && electron-builder --win",
+        "dist:linux": "npm run build && electron-builder --linux",
+        "dev": "./scripts/dev.sh"
+    },
+    "build": {
+        "appId": "com.pagerduty.alert",
+        "productName": "PagerDuty Alert",
+        "mac": {
+            "category": "public.app-category.utilities",
+            "target": [
+                "dmg",
+                "zip"
+            ],
+            "darkModeSupport": true
+        },
+        "files": [
+            "dist/**/*",
+            "assets/**/*",
+            "package.json"
+        ],
+        "directories": {
+            "output": "release",
+            "buildResources": "assets"
+        },
+        "extraResources": [
+            {
+                "from": "assets",
+                "to": "assets"
+            }
+        ],
+        "asar": true
+    },
+    "dependencies": {
+        "@headlessui/react": "^1.7.17",
+        "@heroicons/react": "^2.0.18",
+        "date-fns": "^2.30.0",
+        "electron-store": "^8.1.0",
+        "framer-motion": "^10.16.4",
+        "node-fetch": "^2.7.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-hot-toast": "^2.4.1"
+    },
+    "devDependencies": {
+        "@types/electron": "^1.6.10",
+        "@types/node": "^20.8.2",
+        "@types/react": "^18.2.24",
+        "@types/react-dom": "^18.2.8",
+        "autoprefixer": "^10.4.16",
+        "concurrently": "^9.1.0",
+        "copy-webpack-plugin": "^12.0.2",
+        "cross-env": "^7.0.3",
+        "css-loader": "^6.8.1",
+        "electron": "^26.2.2",
+        "electron-builder": "^24.6.4",
+        "html-webpack-plugin": "^5.5.3",
+        "mini-css-extract-plugin": "^2.9.2",
+        "postcss": "^8.4.31",
+        "postcss-loader": "^7.3.3",
+        "rimraf": "^5.0.10",
+        "style-loader": "^3.3.3",
+        "tailwindcss": "^3.3.3",
+        "terser-webpack-plugin": "^5.3.10",
+        "ts-loader": "^9.4.4",
+        "typescript": "^5.2.2",
+        "wait-on": "^8.0.1",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    }
+}

@@ -1,0 +1,18 @@
+import base64
+import os
+
+def save_base64_to_png(base64_str, output_path):
+    if not os.path.exists('assets'):
+        os.makedirs('assets')
+    
+    with open(output_path, 'wb') as f:
+        f.write(base64.b64decode(base64_str))
+
+# 正常状态图标
+icon_normal = """iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA7AAAAOwBeShxvQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAGASURBVDiNpZK/S8NAFMc/uVwu0dYqFkFwUHBwcnTXf8PVPyL/hZuTq6ubk4vg5uAgKA6KVgeNTdM0ueTu5TkopG2sVfpd3uO979d7vHvwz5IvxWq1Wmi32/vdbvdQKTVSSpUBtNYrIrIAZowZGWPGWZbdTSaTm3K5/DafA7TWe0qpC2PMoTEmBkBrzXK5ZD6fk6YpxhiUUhRFQRAEVCoVtNYTY8xZkiS3AG4OqNVqZ1rrUymlI4RACIEQAq01QRBQr9ep1+tEUYTneQghcF0Xx3FwXXfoed5xkiTPDkCtVjvTWp8IIRxjDFJKpJQopfB9nyiKiOOYMAzxfR/P83Bdt+B53qHW+tgBKJVKp1JKRwiBlBIpJUopfN8nDEPCMCQIAvI8J89zlFJordFa7wI4m4BSqgwQxzFxHNNqtWg2mzQaDaIoIgxDgiDAGPMjwPkO2BhZlpGmKdPplCzLWCwWLBYL0jQlz3OklD8CnO8AYwxSShaLBbPZjNlsRpqmZFmGlPJHwBvJspP9Gh/ergAAAABJRU5ErkJggg==""".replace('\n', '')
+
+# 告警状态图标
+icon_active = """iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA7AAAAOwBeShxvQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAG4SURBVDiNpZKxa1NRFMZ/9+W+vLyXNjVWrIoUhw4OTp0c3fU/cXXyT3F1cnV1c3IR3BwcBMVBsdpBY9Okee++e+85DqGkL7GJ+m3nfOc75/sO9+P+WepcsN/vl1qt1l632z1QSh0qpaoAWuuaiMwBM2PMoTHmKE3Tu+Fw+K1arb7P5wCtdU8pdWmMOTDGJABaa5bLJbPZjCRJMMaglKIoCvI8p1wuo7WeGGMu4ji+BXDPgEajcaG1PpdSOkIIhBAIIdBakwcBjUaDRqNBGIZ4nocQAtd1cRwH13X3PM87iuP42QGo1+vnWuszIYRjjEFKiZQSpRS+7xOGIVEUEQQBvu/jeR6u6xY8zzvQWh85AJVKZSSlXEgpEUIgpURKiVIK3/cJgoAgCMjznDzPUUqhtUZrvQvgnAK01lWAKIqIooh2u02r1aLZbBKGIUEQkOc5xpgfAc53wMbIsowkSZhMJqRpynw+Zz6fkyQJWZYhpfwR4HwHGGOQUrJYLJhOp0ynU5IkIU1TpJQ/At4AqtXqu1qtdqK1PhZCOGcPaa1rxpgPxphDY8xRmqZ34/H4a61We/8X4F/rE1eCqPytGqt2AAAAAElFTkSuQmCC""".replace('\n', '')
+
+save_base64_to_png(icon_normal, 'assets/tray-icon.png')
+save_base64_to_png(icon_active, 'assets/tray-icon-active.png') 
