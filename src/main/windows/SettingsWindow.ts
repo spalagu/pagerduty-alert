@@ -101,4 +101,17 @@ export class SettingsWindow {
       this.window = null
     }
   }
+
+  public async cleanup() {
+    if (this.window) {
+      try {
+        this.window.removeAllListeners()
+        await this.window.webContents.session.clearCache()
+        this.window.destroy()
+        this.window = null
+      } catch (error) {
+        console.error('清理设置窗口时出错:', error)
+      }
+    }
+  }
 } 

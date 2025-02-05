@@ -36,23 +36,37 @@ export class PagerDutyMenuBar {
         console.log('开始执行退出前清理...')
         event.preventDefault()
         this.isQuitting = true
-        await this.cleanup()
-        console.log('清理完成，重新触发退出')
-        app.quit()
+        try {
+          await this.cleanup()
+          console.log('清理完成，准备退出应用')
+          process.nextTick(() => app.exit(0))
+        } catch (error) {
+          console.error('清理过程出错:', error)
+          process.nextTick(() => app.exit(1))
+        }
       }
     })
     
+    // 修改 window-all-closed 事件处理
     app.on('window-all-closed', () => {
       console.log('所有窗口已关闭')
-      if (process.platform !== 'darwin' || this.isQuitting) {
-        console.log('触发应用退出')
+      // 如果已经在退出过程中，不做任何处理
+      if (this.isQuitting) {
+        console.log('正在退出过程中，忽略 window-all-closed 事件')
+        return
+      }
+      // 如果不是 macOS，直接退出
+      if (process.platform !== 'darwin') {
+        console.log('非 macOS 平台，触发应用退出')
         app.quit()
+      } else {
+        console.log('macOS 平台，保持应用运行')
       }
     })
     
     this.init().catch(err => {
       console.error('初始化失败:', err)
-      app.quit()
+      app.exit(1)
     })
   }
 
@@ -142,6 +156,9 @@ export class PagerDutyMenuBar {
   private async cleanup() {
     console.log('开始清理资源...')
     
+    // 设置退出标志
+    this.isQuitting = true
+    
     // 清理轮询定时器
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer)
@@ -156,6 +173,7 @@ export class PagerDutyMenuBar {
     if (this.window) {
       try {
         this.window.removeAllListeners()
+        await this.window.webContents.session.clearCache()
         this.window.destroy()
         this.window = null
         console.log('已销毁主窗口')
@@ -167,11 +185,21 @@ export class PagerDutyMenuBar {
     // 关闭并销毁设置窗口
     if (this.settingsWindow) {
       try {
-        this.settingsWindow.destroy()
+        await this.settingsWindow.cleanup()
         this.settingsWindow = null
         console.log('已销毁设置窗口')
       } catch (error) {
         console.error('销毁设置窗口时出错:', error)
+      }
+    }
+
+    // 关闭并销毁通知窗口
+    if (this.notificationWindow) {
+      try {
+        this.notificationWindow = null
+        console.log('已销毁通知窗口')
+      } catch (error) {
+        console.error('销毁通知窗口时出错:', error)
       }
     }
 
@@ -188,7 +216,7 @@ export class PagerDutyMenuBar {
     }
 
     // 等待一小段时间确保资源释放
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 200))
     console.log('资源清理完成')
   }
 
@@ -288,8 +316,17 @@ export class PagerDutyMenuBar {
         label: '退出',
         click: async () => {
           console.log('用户点击退出按钮')
-          this.isQuitting = true
-          app.quit()
+          try {
+            await this.cleanup()
+            console.log('清理完成，强制退出应用')
+            if (this.window) {
+              this.window.destroy()
+            }
+            app.exit(0)
+          } catch (error) {
+            console.error('退出清理过程出错:', error)
+            app.exit(1)
+          }
         }
       }
     ])
@@ -400,9 +437,12 @@ export class PagerDutyMenuBar {
 
       // 监听窗口关闭事件
       this.window.on('close', (event) => {
+        console.log('窗口关闭事件触发, isQuitting:', this.isQuitting)
         if (!this.isQuitting) {
           event.preventDefault()
           this.window?.hide()
+        } else {
+          console.log('正在退出，允许窗口关闭')
         }
       })
 
