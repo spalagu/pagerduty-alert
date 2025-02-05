@@ -13,10 +13,13 @@
         "dev:electron": "cross-env NODE_ENV=development electron .",
         "dev:start": "concurrently \"npm run dev:webpack\" \"wait-on dist/main.js && npm run dev:electron\"",
         "build": "cross-env NODE_ENV=production webpack --mode production",
-        "dist:mac": "npm run build && electron-builder --mac",
-        "dist:win": "npm run build && electron-builder --win",
-        "dist:linux": "npm run build && electron-builder --linux",
-        "dev": "./scripts/dev.sh"
+        "dist:mac": "npm run icons && npm run build && electron-builder --mac",
+        "dist:win": "npm run icons && npm run build && electron-builder --win",
+        "dist:linux": "npm run icons && npm run build && electron-builder --linux",
+        "dev": "./scripts/dev.sh",
+        "postinstall": "node scripts/postinstall.js",
+        "setup:python": "node scripts/setup_python.js",
+        "icons": "npm run setup:python && node scripts/run_python_script.js scripts/convert_icons.py"
     },
     "build": {
         "appId": "com.pagerduty.alert",
@@ -27,7 +30,22 @@
                 "dmg",
                 "zip"
             ],
-            "darkModeSupport": true
+            "darkModeSupport": true,
+            "icon": "assets/icon.icns"
+        },
+        "win": {
+            "target": [
+                "nsis",
+                "zip"
+            ],
+            "icon": "assets/icon.ico"
+        },
+        "linux": {
+            "target": [
+                "AppImage",
+                "deb"
+            ],
+            "icon": "assets/icon.png"
         },
         "files": [
             "dist/**/*",

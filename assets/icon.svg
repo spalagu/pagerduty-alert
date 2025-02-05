@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- 背景圆形 -->
+    <circle cx="512" cy="512" r="460" fill="#06B6D4" />
+    
+    <!-- 警报图标 -->
+    <path d="M512 192c-35.3 0-64 28.7-64 64v256c0 35.3 28.7 64 64 64s64-28.7 64-64V256c0-35.3-28.7-64-64-64zM512 640c-35.3 0-64 28.7-64 64s28.7 64 64 64 64-28.7 64-64-28.7-64-64-64z" 
+          fill="white"/>
+    
+    <!-- 外环 -->
+    <circle cx="512" cy="512" r="460" stroke="white" stroke-width="40" fill="none"/>
+</svg> 
