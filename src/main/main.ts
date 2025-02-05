@@ -27,7 +27,9 @@ export class PagerDutyMenuBar {
   constructor() {
     console.log('PagerDutyMenuBar 构造函数开始...')
     this.store = new Store()
-    console.log('[Constructor] App启动时间:', this.appStartTime)
+    this.appStartTime = new Date().toISOString()
+    this.lastCheckedTime = this.appStartTime
+    this.lastIncidentIds = new Set()  // 初始化为空集合
     
     // 修改 before-quit 事件监听
     app.on('before-quit', async (event) => {
@@ -572,33 +574,71 @@ export class PagerDutyMenuBar {
     ipcMain.handle('get-incident-details', async (event, incidentId) => {
         const config = this.store.get('config') as PagerDutyConfig
         try {
-            const url = `https://api.pagerduty.com/incidents/${incidentId}/alerts?limit=1&total=true&statuses[]=triggered&statuses[]=acknowledged`
-            const options = {
+            // 获取告警基本信息
+            const incidentUrl = `https://api.pagerduty.com/incidents/${incidentId}`
+            const incidentOptions = {
                 method: 'GET',
                 headers: {
-                    'Accept': 'application/json',
+                    'Accept': 'application/vnd.pagerduty+json;version=2',
                     'Content-Type': 'application/json',
-                    'Authorization': `Token token=${config.apiKey}`,  // 使用配置中的 API Key
+                    'Authorization': `Token token=${config.apiKey}`
                 }
             }
 
-            const response = await fetch(url, options)
+            const incidentResponse = await fetch(incidentUrl, incidentOptions)
 
-            if (!response.ok) {
-                const errorData = await response.json();  // 获取错误信息
-                console.error('获取告警详细信息失败:', errorData);
-                throw new Error(`Failed to fetch incident details: ${errorData.message || response.statusText}`);
+            if (!incidentResponse.ok) {
+                const errorData = await incidentResponse.json()
+                console.error('获取告警详情失败:', errorData)
+                throw new Error(`Failed to fetch incident details: ${errorData.message || incidentResponse.statusText}`)
             }
 
-            const data = await response.json();
-            return data;  // 返回获取到的详细信息
+            const incidentData = await incidentResponse.json()
+
+            // 获取告警的最新告警信息
+            const alertsUrl = `https://api.pagerduty.com/incidents/${incidentId}/alerts?limit=1&total=true&statuses[]=triggered&statuses[]=acknowledged`
+            const alertsOptions = {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/vnd.pagerduty+json;version=2',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token token=${config.apiKey}`
+                }
+            }
+
+            const alertsResponse = await fetch(alertsUrl, alertsOptions)
+
+            if (!alertsResponse.ok) {
+                const errorData = await alertsResponse.json()
+                console.error('获取告警信息失败:', errorData)
+                throw new Error(`Failed to fetch alert details: ${errorData.message || alertsResponse.statusText}`)
+            }
+
+            const alertsData = await alertsResponse.json()
+
+            // 合并告警详情和自定义字段
+            const result = {
+                incident: incidentData.incident,
+                alerts: alertsData.alerts,
+                customDetails: incidentData.incident.body?.details || {},
+                firstAlertDetails: alertsData.alerts?.[0]?.body?.details || {}
+            }
+
+            console.log('告警详情数据:', {
+                incidentId,
+                status: result.incident.status,
+                hasCustomDetails: Object.keys(result.customDetails).length > 0,
+                hasAlertDetails: Object.keys(result.firstAlertDetails).length > 0
+            })
+
+            return result
         } catch (error: unknown) {
             if (error instanceof Error) {
                 return { success: false, error: error.message }
             }
             return { success: false, error: 'An unknown error occurred' }
         }
-    });
+    })
 
     ipcMain.handle('fetch-incidents', async () => {
       try {
@@ -687,7 +727,6 @@ export class PagerDutyMenuBar {
     
     this.isFetching = true
     console.log('[fetchIncidents] ========== 开始获取告警 ==========')
-    console.log('[fetchIncidents] 使用App启动时间:', this.appStartTime)
     
     try {
       const config = this.store.get('config') as PagerDutyConfig
@@ -696,13 +735,20 @@ export class PagerDutyMenuBar {
       const params = new URLSearchParams()
       statusFilter.forEach(status => params.append('statuses[]', status))
       urgencyFilter.forEach(urgency => params.append('urgencies[]', urgency))
-      params.append('since', this.appStartTime)
+      
+      // 只在启用"只显示新告警"选项时添加 since 参数
+      if (showOnlyNewAlerts) {
+        params.append('since', this.appStartTime)
+        console.log('[fetchIncidents] 启用只显示新告警，使用 since 参数:', this.appStartTime)
+      } else {
+        console.log('[fetchIncidents] 未启用只显示新告警，获取所有告警')
+      }
+      
       params.append('limit', '100')
       params.append('total', 'true')
       params.append('sort_by', 'created_at:desc')
 
       console.log('[fetchIncidents] API 请求参数:', params.toString())
-      console.log('[fetchIncidents] lastIncidentIds:', Array.from(this.lastIncidentIds))
       
       const response = await fetch(`https://api.pagerduty.com/incidents?${params.toString()}`, {
         headers: {
@@ -716,39 +762,34 @@ export class PagerDutyMenuBar {
       }
 
       const data = await response.json()
-      console.log('[fetchIncidents] API 返回数据:', data)
-
       const incidents = data.incidents || []
-      console.log('[fetchIncidents] 过滤后的告警数据:', { count: incidents.length, incidents })
-
-      // 找出新的告警
-      const currentIds: Set<string> = new Set(incidents.map((inc: Incident) => inc.id))
-      const newIncidents = incidents.filter((inc: Incident) => !this.lastIncidentIds.has(inc.id))
       
-      console.log('[fetchIncidents] 新告警检查:', {
-        currentIds: Array.from(currentIds),
-        lastIncidentIds: Array.from(this.lastIncidentIds),
-        newIncidents: newIncidents.map((inc: Incident) => inc.id)
-      })
-
-      // 只在有新告警时更新图标和发送通知
-      if (newIncidents.length > 0) {
-        console.log('[fetchIncidents] 发现新告警:', newIncidents.length, '个')
-        // 获取完整的告警列表
-        const allIncidents = await this.window?.webContents.executeJavaScript('window.getAllIncidents()') || []
-        this.updateTrayIcon(allIncidents, newIncidents)
+      // 根据是否只显示新告警来决定如何处理 lastIncidentIds
+      if (showOnlyNewAlerts) {
+        // 找出新的告警
+        const currentIds: Set<string> = new Set(incidents.map((inc: Incident) => inc.id))
+        const newIncidents = incidents.filter((inc: Incident) => !this.lastIncidentIds.has(inc.id))
+        
         // 更新已知告警ID集合
         this.lastIncidentIds = currentIds
+        
+        // 处理新告警通知
+        if (newIncidents.length > 0) {
+          console.log('[fetchIncidents] 发现新告警:', newIncidents.length, '个')
+          const allIncidents = await this.window?.webContents.executeJavaScript('window.getAllIncidents()') || []
+          this.updateTrayIcon(allIncidents, newIncidents)
+        } else {
+          console.log('[fetchIncidents] 没有新告警')
+          const allIncidents = await this.window?.webContents.executeJavaScript('window.getAllIncidents()') || []
+          this.updateTrayIcon(allIncidents)
+        }
       } else {
-        console.log('[fetchIncidents] 没有新告警')
-        // 即使没有新告警，也要更新图标显示
-        const allIncidents = await this.window?.webContents.executeJavaScript('window.getAllIncidents()') || []
-        this.updateTrayIcon(allIncidents)
+        // 不过滤新告警，直接更新图标
+        console.log('[fetchIncidents] 显示所有告警')
+        this.updateTrayIcon(incidents)
       }
 
-      // 更新最后检查时间
       this.lastCheckedTime = new Date().toISOString()
-
       this.lastValidIncidents = incidents
       return incidents
     } catch (error) {
