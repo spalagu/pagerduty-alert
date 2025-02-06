@@ -87,11 +87,13 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
 
     if (loading) {
         return (
-            <div className="p-4">
-                <div className="animate-pulse space-y-4">
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+            <div className="h-full bg-gray-50 dark:bg-gray-900">
+                <div className="p-4">
+                    <div className="animate-pulse space-y-4">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+                    </div>
                 </div>
             </div>
         )
@@ -99,17 +101,21 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
 
     if (error) {
         return (
-            <div className="p-4 text-red-500 dark:text-red-400">
-                <ExclamationTriangleIcon className="w-6 h-6 inline-block mr-2" />
-                {error}
+            <div className="h-full bg-gray-50 dark:bg-gray-900">
+                <div className="p-4 text-red-500 dark:text-red-400">
+                    <ExclamationTriangleIcon className="w-6 h-6 inline-block mr-2" />
+                    {error}
+                </div>
             </div>
         )
     }
 
     if (!details) {
         return (
-            <div className="p-4 text-gray-500 dark:text-gray-400">
-                无法加载告警详情
+            <div className="h-full bg-gray-50 dark:bg-gray-900">
+                <div className="p-4 text-gray-500 dark:text-gray-400">
+                    无法加载告警详情
+                </div>
             </div>
         )
     }
@@ -125,104 +131,102 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
     })
 
     return (
-        <div className="h-full overflow-y-auto bg-white dark:bg-gray-800">
-            <div className="max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-full">
-                <div className="p-4 space-y-4">
-                    {/* 标题和描述 */}
+        <div className="h-full overflow-y-auto">
+            <div className="p-4 space-y-4">
+                {/* 标题和描述 */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        告警标题
+                    </div>
+                    <div className="mt-1 text-sm text-gray-900 dark:text-gray-100 break-words">
+                        {incident.title}
+                    </div>
+                </div>
+
+                {/* 关键信息 */}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    {/* 服务名称 */}
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
                         <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            告警标题
+                            服务
                         </div>
-                        <div className="mt-1 text-sm text-gray-900 dark:text-gray-100 break-words">
-                            {incident.title}
+                        <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                            {incident.service.name}
                         </div>
                     </div>
 
-                    {/* 关键信息 */}
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                        {/* 服务名称 */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
-                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                服务
-                            </div>
-                            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                                {incident.service.name}
-                            </div>
+                    {/* 状态 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            状态
                         </div>
-
-                        {/* 状态 */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
-                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                状态
-                            </div>
-                            <div className="mt-1 flex items-center gap-2">
-                                {incident.status === 'triggered' ? (
-                                    <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />
-                                ) : (
-                                    <CheckCircleIcon className="w-4 h-4 text-yellow-500" />
-                                )}
-                                <span className={`text-sm font-medium ${
-                                    incident.status === 'triggered' 
-                                        ? 'text-red-600 dark:text-red-400' 
-                                        : 'text-yellow-600 dark:text-yellow-400'
-                                }`}>
-                                    {incident.status === 'triggered' ? '待处理' : '已确认'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* 优先级 */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
-                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                优先级
-                            </div>
-                            <div className={`mt-1 text-sm font-medium ${
-                                incident.urgency === 'high'
-                                    ? 'text-red-600 dark:text-red-400'
-                                    : 'text-blue-600 dark:text-blue-400'
+                        <div className="mt-1 flex items-center gap-2">
+                            {incident.status === 'triggered' ? (
+                                <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />
+                            ) : (
+                                <CheckCircleIcon className="w-4 h-4 text-yellow-500" />
+                            )}
+                            <span className={`text-sm font-medium ${
+                                incident.status === 'triggered' 
+                                    ? 'text-red-600 dark:text-red-400' 
+                                    : 'text-yellow-600 dark:text-yellow-400'
                             }`}>
-                                {incident.urgency === 'high' ? '高' : '低'}
-                            </div>
+                                {incident.status === 'triggered' ? '待处理' : '已确认'}
+                            </span>
                         </div>
-
-                        {/* 创建时间 */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
-                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                创建时间
-                            </div>
-                            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                                {format(new Date(incident.created_at), 'yyyy-MM-dd HH:mm:ss')}
-                            </div>
-                        </div>
-
-                        {/* 确认时间 */}
-                        {incident.status === 'acknowledged' && (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
-                                <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                    确认时间
-                                </div>
-                                <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                                    {format(new Date(incident.last_status_change_at), 'yyyy-MM-dd HH:mm:ss')}
-                                </div>
-                            </div>
-                        )}
                     </div>
 
-                    {/* 自定义字段 */}
-                    {(hasCustomDetails || hasAlertDetails) && (
+                    {/* 优先级 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            优先级
+                        </div>
+                        <div className={`mt-1 text-sm font-medium ${
+                            incident.urgency === 'high'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-blue-600 dark:text-blue-400'
+                        }`}>
+                            {incident.urgency === 'high' ? '高' : '低'}
+                        </div>
+                    </div>
+
+                    {/* 创建时间 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            创建时间
+                        </div>
+                        <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                            {format(new Date(incident.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                        </div>
+                    </div>
+
+                    {/* 确认时间 */}
+                    {incident.status === 'acknowledged' && (
                         <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
                             <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                自定义字段
+                                确认时间
                             </div>
-                            <div className="mt-1">
-                                <CustomDetailsPanel
-                                    customDetails={details.customDetails}
-                                    alertDetails={details.firstAlertDetails}
-                                />
+                            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                {format(new Date(incident.last_status_change_at), 'yyyy-MM-dd HH:mm:ss')}
                             </div>
                         </div>
                     )}
                 </div>
+
+                {/* 自定义字段 */}
+                {(hasCustomDetails || hasAlertDetails) && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            自定义字段
+                        </div>
+                        <div className="mt-1">
+                            <CustomDetailsPanel
+                                customDetails={details.customDetails}
+                                alertDetails={details.firstAlertDetails}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )
