@@ -36,7 +36,7 @@ const CustomDetailsPanel: React.FC<CustomDetailsPanelProps> = ({ customDetails, 
     if (!hasDetails) {
         console.log('CustomDetailsPanel: 无可用详情数据')
         return (
-            <div className="text-center text-gray-500 dark:text-gray-400">
+            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                 无自定义字段信息
             </div>
         )
@@ -45,19 +45,21 @@ const CustomDetailsPanel: React.FC<CustomDetailsPanelProps> = ({ customDetails, 
     console.log('CustomDetailsPanel: 开始渲染详情面板')
 
     return (
-        <div className="bg-white dark:bg-gray-800/50 rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {Object.entries(allDetails).map(([key, value], index) => {
                 console.log('Rendering detail:', { key, value })
                 return (
                     <div
                         key={`${key}-${index}`}
-                        className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors"
+                        className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                     >
                         <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                             {key}
                         </div>
-                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-mono">
-                            {formatValue(value)}
+                        <div className="mt-1">
+                            <code className="text-sm text-gray-600 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800/50 px-1.5 py-0.5 rounded">
+                                {formatValue(value)}
+                            </code>
                         </div>
                     </div>
                 )
