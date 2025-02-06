@@ -572,9 +572,11 @@ export class PagerDutyMenuBar {
     })
 
     ipcMain.handle('get-incident-details', async (event, incidentId) => {
+        console.log('收到获取告警详情请求:', incidentId)
         const config = this.store.get('config') as PagerDutyConfig
         try {
             // 获取告警基本信息
+            console.log('开始获取告警基本信息...')
             const incidentUrl = `https://api.pagerduty.com/incidents/${incidentId}`
             const incidentOptions = {
                 method: 'GET',
@@ -586,6 +588,7 @@ export class PagerDutyMenuBar {
             }
 
             const incidentResponse = await fetch(incidentUrl, incidentOptions)
+            console.log('告警基本信息响应状态:', incidentResponse.status)
 
             if (!incidentResponse.ok) {
                 const errorData = await incidentResponse.json()
@@ -594,8 +597,10 @@ export class PagerDutyMenuBar {
             }
 
             const incidentData = await incidentResponse.json()
+            console.log('获取到告警基本信息')
 
             // 获取告警的最新告警信息
+            console.log('开始获取最新告警信息...')
             const alertsUrl = `https://api.pagerduty.com/incidents/${incidentId}/alerts?limit=1&total=true&statuses[]=triggered&statuses[]=acknowledged`
             const alertsOptions = {
                 method: 'GET',
@@ -607,6 +612,7 @@ export class PagerDutyMenuBar {
             }
 
             const alertsResponse = await fetch(alertsUrl, alertsOptions)
+            console.log('告警信息响应状态:', alertsResponse.status)
 
             if (!alertsResponse.ok) {
                 const errorData = await alertsResponse.json()
@@ -615,6 +621,7 @@ export class PagerDutyMenuBar {
             }
 
             const alertsData = await alertsResponse.json()
+            console.log('获取到最新告警信息')
 
             // 合并告警详情和自定义字段
             const result = {
@@ -624,7 +631,7 @@ export class PagerDutyMenuBar {
                 firstAlertDetails: alertsData.alerts?.[0]?.body?.details || {}
             }
 
-            console.log('告警详情数据:', {
+            console.log('告警详情数据处理完成:', {
                 incidentId,
                 status: result.incident.status,
                 hasCustomDetails: Object.keys(result.customDetails).length > 0,
@@ -633,6 +640,7 @@ export class PagerDutyMenuBar {
 
             return result
         } catch (error: unknown) {
+            console.error('处理告警详情请求时出错:', error)
             if (error instanceof Error) {
                 return { success: false, error: error.message }
             }
