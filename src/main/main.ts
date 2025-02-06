@@ -744,7 +744,6 @@ export class PagerDutyMenuBar {
       statusFilter.forEach(status => params.append('statuses[]', status))
       urgencyFilter.forEach(urgency => params.append('urgencies[]', urgency))
       
-      // 只在启用"只显示新告警"选项时添加 since 参数
       if (showOnlyNewAlerts) {
         params.append('since', this.appStartTime)
         console.log('[fetchIncidents] 启用只显示新告警，使用 since 参数:', this.appStartTime)
@@ -772,25 +771,62 @@ export class PagerDutyMenuBar {
       const data = await response.json()
       const incidents = data.incidents || []
       
-      // 根据是否只显示新告警来决定如何处理 lastIncidentIds
       if (showOnlyNewAlerts) {
-        // 找出新的告警
         const currentIds: Set<string> = new Set(incidents.map((inc: Incident) => inc.id))
         const newIncidents = incidents.filter((inc: Incident) => !this.lastIncidentIds.has(inc.id))
         
-        // 更新已知告警ID集合
-        this.lastIncidentIds = currentIds
-        
-        // 处理新告警通知
+        // 立即更新状态和发送通知
         if (newIncidents.length > 0) {
           console.log('[fetchIncidents] 发现新告警:', newIncidents.length, '个')
-          const allIncidents = await this.window?.webContents.executeJavaScript('window.getAllIncidents()') || []
-          this.updateTrayIcon(allIncidents, newIncidents)
+          
+          // 立即更新图标状态
+          this.updateTrayIcon(incidents, newIncidents)
+          
+          // 立即通知渲染进程
+          this.window?.webContents.send('incidents-updated', incidents)
+          
+          // 处理通知
+          if (config.notification?.enabled) {
+            if (config.notification.grouping) {
+              const highPriorityIncidents = newIncidents.filter((inc: Incident) => inc.urgency === 'high')
+              const lowPriorityIncidents = newIncidents.filter((inc: Incident) => inc.urgency === 'low')
+              
+              if (highPriorityIncidents.length > 0) {
+                notificationService.showNotification({
+                  title: '新告警通知',
+                  body: `${highPriorityIncidents.length} 个高优先级告警`,
+                  urgency: 'high',
+                  onClick: () => {
+                    this.window?.show()
+                  }
+                })
+              }
+              if (lowPriorityIncidents.length > 0) {
+                notificationService.showNotification({
+                  title: '新告警通知',
+                  body: `${lowPriorityIncidents.length} 个低优先级告警`,
+                  urgency: 'low',
+                  onClick: () => {
+                    this.window?.show()
+                  }
+                })
+              }
+            } else {
+              newIncidents.forEach((incident: Incident) => {
+                notificationService.showIncidentNotification(incident, () => {
+                  this.window?.show()
+                })
+              })
+            }
+          }
         } else {
           console.log('[fetchIncidents] 没有新告警')
-          const allIncidents = await this.window?.webContents.executeJavaScript('window.getAllIncidents()') || []
-          this.updateTrayIcon(allIncidents)
+          // 仍然更新图标状态，但不发送通知
+          this.updateTrayIcon(incidents)
         }
+        
+        // 更新已知告警ID集合
+        this.lastIncidentIds = currentIds
       } else {
         // 不过滤新告警，直接更新图标
         console.log('[fetchIncidents] 显示所有告警')
@@ -848,7 +884,6 @@ export class PagerDutyMenuBar {
       showOnlyNewAlerts: config.showOnlyNewAlerts
     })
 
-    // 记录当前告警的基本信息用于日志
     console.log('告警数据:', incidents.map(inc => ({
       id: inc.id,
       status: inc.status,
@@ -856,7 +891,6 @@ export class PagerDutyMenuBar {
       created_at: inc.created_at
     })))
 
-    // 状态过滤
     const filteredIncidents = incidents.filter(inc => 
       config.statusFilter.includes(inc.status) &&
       config.urgencyFilter.includes(inc.urgency)
@@ -869,7 +903,6 @@ export class PagerDutyMenuBar {
       created_at: inc.created_at
     })))
 
-    // 图标状态判断
     const statusCounts = {
       triggered: filteredIncidents.filter(inc => inc.status === 'triggered').length,
       acknowledged: filteredIncidents.filter(inc => inc.status === 'acknowledged').length,
@@ -886,7 +919,6 @@ export class PagerDutyMenuBar {
       statusCounts
     })
 
-    // 根据状态选择图标
     let iconName: string
     let reason: string
     if (hasTriggeredIncidents) {
@@ -902,53 +934,14 @@ export class PagerDutyMenuBar {
 
     console.log('图标选择结果:', { iconName, reason })
 
-    // 设置图标
     const iconPath = this.getIconPath(iconName)
     if (iconPath) {
       this.tray?.setImage(iconPath)
       console.log('图标路径:', iconPath)
     }
 
-    // 设置工具提示
     if (this.tray) {
       this.tray.setToolTip(`PagerDuty Alert\n${filteredIncidents.length} 个告警`)
-    }
-
-    // 只有在有新告警时才发送通知
-    if (newIncidents.length > 0 && config.notification?.enabled) {
-      const highPriorityIncidents = newIncidents.filter(inc => inc.urgency === 'high')
-      const lowPriorityIncidents = newIncidents.filter(inc => inc.urgency === 'low')
-
-      if (config.notification.grouping) {
-        // 分组发送通知
-        if (highPriorityIncidents.length > 0) {
-          notificationService.showNotification({
-            title: '新告警通知',
-            body: `${highPriorityIncidents.length} 个高优先级告警`,
-            urgency: 'high',
-            onClick: () => {
-              this.window?.show()
-            }
-          })
-        }
-        if (lowPriorityIncidents.length > 0) {
-          notificationService.showNotification({
-            title: '新告警通知',
-            body: `${lowPriorityIncidents.length} 个低优先级告警`,
-            urgency: 'low',
-            onClick: () => {
-              this.window?.show()
-            }
-          })
-        }
-      } else {
-        // 单独发送每个告警的通知
-        newIncidents.forEach(incident => {
-          notificationService.showIncidentNotification(incident, () => {
-            this.window?.show()
-          })
-        })
-      }
     }
 
     console.log('图标更新完成')
