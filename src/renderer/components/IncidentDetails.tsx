@@ -125,45 +125,53 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
     })
 
     return (
-        <div className="h-full overflow-y-auto bg-gray-50 dark:bg-gray-900">
-            <div className="max-w-4xl mx-auto">
-                {/* 头部区域 */}
-                <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm">
-                    <div className="px-4 py-4">
-                        <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 mt-1">
-                                {incident.status === 'triggered' ? (
-                                    <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-                                ) : (
-                                    <CheckCircleIcon className="w-5 h-5 text-yellow-500" />
-                                )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <h1 className="text-base font-semibold text-gray-900 dark:text-white break-words">
-                                    {incident.title}
-                                </h1>
-                                <div className="mt-1 flex items-center gap-2 text-sm">
-                                    <span className="text-gray-600 dark:text-gray-400">
-                                        {incident.service.name}
-                                    </span>
-                                    <span className="text-gray-300 dark:text-gray-600">•</span>
-                                    <span className={`font-medium ${
-                                        incident.status === 'triggered' 
-                                            ? 'text-red-600 dark:text-red-400' 
-                                            : 'text-yellow-600 dark:text-yellow-400'
-                                    }`}>
-                                        {incident.status === 'triggered' ? '待处理' : '已确认'}
-                                    </span>
-                                </div>
-                            </div>
+        <div className="h-full overflow-y-auto bg-white dark:bg-gray-800">
+            <div className="max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-full">
+                <div className="p-4 space-y-4">
+                    {/* 标题和描述 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            告警标题
+                        </div>
+                        <div className="mt-1 text-sm text-gray-900 dark:text-gray-100 break-words">
+                            {incident.title}
                         </div>
                     </div>
-                </div>
 
-                {/* 主要内容区域 */}
-                <div className="px-4 py-4 space-y-6">
                     {/* 关键信息 */}
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                        {/* 服务名称 */}
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                服务
+                            </div>
+                            <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                {incident.service.name}
+                            </div>
+                        </div>
+
+                        {/* 状态 */}
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                状态
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                                {incident.status === 'triggered' ? (
+                                    <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />
+                                ) : (
+                                    <CheckCircleIcon className="w-4 h-4 text-yellow-500" />
+                                )}
+                                <span className={`text-sm font-medium ${
+                                    incident.status === 'triggered' 
+                                        ? 'text-red-600 dark:text-red-400' 
+                                        : 'text-yellow-600 dark:text-yellow-400'
+                                }`}>
+                                    {incident.status === 'triggered' ? '待处理' : '已确认'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* 优先级 */}
                         <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
                             <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
                                 优先级
@@ -176,6 +184,8 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
                                 {incident.urgency === 'high' ? '高' : '低'}
                             </div>
                         </div>
+
+                        {/* 创建时间 */}
                         <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
                             <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
                                 创建时间
@@ -184,6 +194,8 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
                                 {format(new Date(incident.created_at), 'yyyy-MM-dd HH:mm:ss')}
                             </div>
                         </div>
+
+                        {/* 确认时间 */}
                         {incident.status === 'acknowledged' && (
                             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
                                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -196,50 +208,18 @@ const IncidentDetails: React.FC<IncidentDetailsProps> = ({ incident, onClose }) 
                         )}
                     </div>
 
-                    {/* 描述信息 */}
-                    {incident.description && (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                                    描述
-                                </h3>
-                            </div>
-                            <div className="px-4 py-3">
-                                <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
-                                    {incident.description}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 详细信息 */}
-                    {incident.details && (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                                    详细信息
-                                </h3>
-                            </div>
-                            <div className="px-4 py-3">
-                                <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
-                                    {incident.details}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* 自定义字段 */}
                     {(hasCustomDetails || hasAlertDetails) && (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                                    自定义字段
-                                </h3>
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                自定义字段
                             </div>
-                            <CustomDetailsPanel
-                                customDetails={details.customDetails}
-                                alertDetails={details.firstAlertDetails}
-                            />
+                            <div className="mt-1">
+                                <CustomDetailsPanel
+                                    customDetails={details.customDetails}
+                                    alertDetails={details.firstAlertDetails}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
