@@ -23,6 +23,11 @@ export class PagerDutyMenuBar {
   private isFetching = false
   private lastCheckedTime: string = new Date().toISOString()
   private appStartTime: string = new Date().toISOString()
+  private pendingNotifications = {
+    high: 0,
+    low: 0
+  }
+  private hasActiveNotification = false
 
   constructor() {
     console.log('PagerDutyMenuBar 构造函数开始...')
@@ -472,6 +477,38 @@ export class PagerDutyMenuBar {
     })
 
     ipcMain.handle('save-config', async (event, config: PagerDutyConfig) => {
+      console.log('保存配置，当前配置详情:', {
+        apiKey: config.apiKey ? '已设置' : '未设置',
+        pollingInterval: config.pollingInterval,
+        urgencyFilter: config.urgencyFilter,
+        statusFilter: config.statusFilter,
+        showOnlyNewAlerts: config.showOnlyNewAlerts,
+        notification: {
+          enabled: config.notification?.enabled,
+          sound: config.notification?.sound,
+          grouping: config.notification?.grouping,
+          criticalPersistent: config.notification?.criticalPersistent,
+          clickToShow: config.notification?.clickToShow
+        },
+        appearance: {
+          theme: config.appearance?.theme,
+          windowSize: config.appearance?.windowSize
+        },
+        system: {
+          autoLaunch: config.system?.autoLaunch,
+          proxy: {
+            enabled: config.system?.proxy?.enabled,
+            server: config.system?.proxy?.server,
+            bypass: config.system?.proxy?.bypass
+          }
+        },
+        cache: {
+          enabled: config.cache?.enabled,
+          maxAge: config.cache?.maxAge,
+          maxItems: config.cache?.maxItems
+        }
+      })
+
       // 应用主题设置
       if (config.appearance.theme === 'system') {
         nativeTheme.themeSource = 'system'
@@ -515,7 +552,7 @@ export class PagerDutyMenuBar {
       notificationService.setEnabled(config.notification?.enabled ?? true)
       notificationService.setSoundEnabled(config.notification?.sound ?? true)
       this.notificationWindow?.setConfig({
-        criticalPersistent: config.notification?.criticalPersistent ?? false
+        criticalPersistent: config.notification?.criticalPersistent ?? true
       })
     })
 
@@ -775,7 +812,6 @@ export class PagerDutyMenuBar {
         const currentIds: Set<string> = new Set(incidents.map((inc: Incident) => inc.id))
         const newIncidents = incidents.filter((inc: Incident) => !this.lastIncidentIds.has(inc.id))
         
-        // 立即更新状态和发送通知
         if (newIncidents.length > 0) {
           console.log('[fetchIncidents] 发现新告警:', newIncidents.length, '个')
           
@@ -787,48 +823,27 @@ export class PagerDutyMenuBar {
           
           // 处理通知
           if (config.notification?.enabled) {
-            if (config.notification.grouping) {
-              const highPriorityIncidents = newIncidents.filter((inc: Incident) => inc.urgency === 'high')
-              const lowPriorityIncidents = newIncidents.filter((inc: Incident) => inc.urgency === 'low')
-              
-              if (highPriorityIncidents.length > 0) {
-                notificationService.showNotification({
-                  title: '新告警通知',
-                  body: `${highPriorityIncidents.length} 个高优先级告警`,
-                  urgency: 'high',
-                  onClick: () => {
-                    this.window?.show()
-                  }
-                })
+            // 累计待显示的通知
+            newIncidents.forEach((inc: Incident) => {
+              if (inc.urgency === 'high') {
+                this.pendingNotifications.high++
+              } else {
+                this.pendingNotifications.low++
               }
-              if (lowPriorityIncidents.length > 0) {
-                notificationService.showNotification({
-                  title: '新告警通知',
-                  body: `${lowPriorityIncidents.length} 个低优先级告警`,
-                  urgency: 'low',
-                  onClick: () => {
-                    this.window?.show()
-                  }
-                })
-              }
-            } else {
-              newIncidents.forEach((incident: Incident) => {
-                notificationService.showIncidentNotification(incident, () => {
-                  this.window?.show()
-                })
-              })
+            })
+
+            // 如果没有活动的通知，立即显示
+            if (!this.hasActiveNotification) {
+              this.showPendingNotifications(config)
             }
           }
         } else {
           console.log('[fetchIncidents] 没有新告警')
-          // 仍然更新图标状态，但不发送通知
           this.updateTrayIcon(incidents)
         }
         
-        // 更新已知告警ID集合
         this.lastIncidentIds = currentIds
       } else {
-        // 不过滤新告警，直接更新图标
         console.log('[fetchIncidents] 显示所有告警')
         this.updateTrayIcon(incidents)
       }
@@ -843,6 +858,84 @@ export class PagerDutyMenuBar {
       this.isFetching = false
       console.log('[fetchIncidents] ========== 获取告警完成 ==========')
     }
+  }
+
+  private showPendingNotifications(config: PagerDutyConfig) {
+    console.log('showPendingNotifications 被调用:', {
+      notificationEnabled: config.notification?.enabled,
+      pendingNotifications: this.pendingNotifications,
+      hasActiveNotification: this.hasActiveNotification
+    })
+
+    if (!config.notification?.enabled) {
+      console.log('通知功能已禁用')
+      return
+    }
+
+    this.hasActiveNotification = true
+
+    const showNotification = () => {
+      console.log('准备显示通知:', {
+        highCount: this.pendingNotifications.high,
+        lowCount: this.pendingNotifications.low
+      })
+
+      if (this.pendingNotifications.high > 0) {
+        console.log('显示高优先级通知')
+        notificationService.showNotification({
+          title: '新告警通知',
+          body: `${this.pendingNotifications.high} 个高优先级告警`,
+          urgency: 'high',
+          onClick: () => {
+            console.log('通知被点击，显示主窗口')
+            this.window?.show()
+          },
+          onClose: () => {
+            console.log('高优先级通知被关闭')
+            this.pendingNotifications.high = 0
+            if (this.pendingNotifications.low > 0) {
+              console.log('显示低优先级通知')
+              notificationService.showNotification({
+                title: '新告警通知',
+                body: `${this.pendingNotifications.low} 个低优先级告警`,
+                urgency: 'low',
+                onClick: () => {
+                  this.window?.show()
+                },
+                onClose: () => {
+                  console.log('低优先级通知被关闭')
+                  this.pendingNotifications.low = 0
+                  this.hasActiveNotification = false
+                }
+              })
+            } else {
+              console.log('没有更多通知，重置状态')
+              this.hasActiveNotification = false
+            }
+          }
+        })
+      } else if (this.pendingNotifications.low > 0) {
+        console.log('显示低优先级通知')
+        notificationService.showNotification({
+          title: '新告警通知',
+          body: `${this.pendingNotifications.low} 个低优先级告警`,
+          urgency: 'low',
+          onClick: () => {
+            this.window?.show()
+          },
+          onClose: () => {
+            console.log('低优先级通知被关闭')
+            this.pendingNotifications.low = 0
+            this.hasActiveNotification = false
+          }
+        })
+      } else {
+        console.log('没有待显示的通知')
+        this.hasActiveNotification = false
+      }
+    }
+
+    showNotification()
   }
 
   private async startPolling() {

@@ -59,4 +59,12 @@ export interface Incident {
 export interface CachedIncident extends Incident {
   cached_at: string
   expires_at: string
+}
+
+export interface NotificationOptions {
+  title: string
+  body: string
+  urgency: 'high' | 'low'
+  onClick?: () => void
+  onClose?: () => void
 } 

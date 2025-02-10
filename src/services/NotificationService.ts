@@ -6,6 +6,7 @@ interface NotificationOptions {
   silent?: boolean
   urgency?: 'high' | 'low'
   onClick?: () => void
+  onClose?: () => void
 }
 
 export interface Incident {
@@ -37,37 +38,46 @@ class NotificationService {
   private isSoundEnabled: boolean = true
 
   constructor() {
+    console.log('NotificationService 初始化')
     this.notificationWindow = NotificationWindow.getInstance()
   }
 
   public setEnabled(enabled: boolean) {
+    console.log('NotificationService.setEnabled:', enabled)
     this.isEnabled = enabled
   }
 
   public setSoundEnabled(enabled: boolean) {
+    console.log('NotificationService.setSoundEnabled:', enabled)
     this.isSoundEnabled = enabled
   }
 
   public showNotification(options: NotificationOptions) {
-    console.log('NotificationService.showNotification:', options)
+    console.log('NotificationService.showNotification:', {
+      options,
+      isEnabled: this.isEnabled,
+      isSoundEnabled: this.isSoundEnabled
+    })
     
     if (!this.isEnabled) {
       console.log('通知服务已禁用')
       return
     }
 
-    const { title, body, urgency = 'low' } = options
+    const { title, body, urgency = 'low', onClick, onClose } = options
     console.log('显示通知:', { title, body, urgency })
 
     // 显示通知窗口
     this.notificationWindow.show({
       title,
       body,
-      urgency
+      urgency,
+      onClick,
+      onClose
     })
   }
 
-  public showIncidentNotification(incident: any, onClick?: () => void) {
+  public showIncidentNotification(incident: any, onClick?: () => void, onClose?: () => void) {
     const urgency = incident.urgency === 'high' ? 'high' : 'low'
     const title = `${incident.urgency === 'high' ? '🔴' : '🟡'} ${incident.service.name}`
     const body = incident.title
@@ -76,11 +86,12 @@ class NotificationService {
       title,
       body,
       urgency,
-      onClick
+      onClick,
+      onClose
     })
   }
 
-  public showIncidentsGroupNotification(incidents: any[], onClick?: () => void) {
+  public showIncidentsGroupNotification(incidents: any[], onClick?: () => void, onClose?: () => void) {
     const highCount = incidents.filter(i => i.urgency === 'high').length
     const lowCount = incidents.length - highCount
     
@@ -94,7 +105,8 @@ class NotificationService {
       title,
       body,
       urgency: highCount > 0 ? 'high' : 'low',
-      onClick
+      onClick,
+      onClose
     })
   }
 }
