@@ -9,6 +9,7 @@ import { systemService } from '../services/SystemService'
 import { SettingsWindow } from './windows/SettingsWindow'
 import { notificationService } from '../services/NotificationService'
 import { NotificationWindow } from './windows/NotificationWindow'
+import { DEFAULT_CONFIG } from '../config/defaults'
 
 export class PagerDutyMenuBar {
   private tray: Tray | null = null
@@ -36,41 +37,7 @@ export class PagerDutyMenuBar {
       this.store = new Store({
         name: 'pagerduty',
         defaults: {
-          config: {
-            apiKey: '',
-            pollingInterval: 30000,
-            urgencyFilter: ['high'],
-            statusFilter: ['triggered', 'acknowledged'],
-            showOnlyNewAlerts: false,
-            lastCheckedTime: new Date().toISOString(),
-            notification: {
-              enabled: true,
-              sound: true,
-              grouping: true,
-              criticalPersistent: true,
-              clickToShow: true
-            },
-            appearance: {
-              theme: 'system',
-              windowSize: {
-                width: 400,
-                height: 800
-              }
-            },
-            system: {
-              autoLaunch: false,
-              proxy: {
-                enabled: false,
-                server: '',
-                bypass: '<local>'
-              }
-            },
-            cache: {
-              enabled: true,
-              maxAge: 24 * 60 * 60 * 1000,
-              maxItems: 1000
-            }
-          }
+          config: DEFAULT_CONFIG
         },
         clearInvalidConfig: true
       })
@@ -89,27 +56,7 @@ export class PagerDutyMenuBar {
       this.store = new Store({
         name: 'pagerduty',
         defaults: {
-          config: {
-            apiKey: '',
-            pollingInterval: 30000,
-            urgencyFilter: ['high'],
-            statusFilter: ['triggered', 'acknowledged'],
-            showOnlyNewAlerts: false,
-            notification: {
-              enabled: true,
-              sound: true,
-              grouping: true,
-              criticalPersistent: true,
-              clickToShow: true
-            },
-            appearance: {
-              theme: 'system',
-              windowSize: {
-                width: 400,
-                height: 600
-              }
-            }
-          }
+          config: DEFAULT_CONFIG
         }
       })
     }

@@ -1,36 +1,25 @@
 import Store from 'electron-store'
 import type { Incident, CachedIncident, PagerDutyConfig } from '../types'
+import { DEFAULT_CACHE_CONFIG } from '../config/defaults'
 
-class CacheService {
-  private store: Store
+export class CacheService {
+  private store!: Store
   private cache: Map<string, CachedIncident> = new Map()
-  private config: PagerDutyConfig['cache'] = {
-    enabled: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    maxItems: 1000
-  }
+  private config: PagerDutyConfig['cache'] = DEFAULT_CACHE_CONFIG
 
   constructor() {
     console.log('CacheService 初始化开始')
     try {
-      // 创建 store 实例时进行错误处理
       this.store = new Store({
         name: 'cache',
         defaults: {
           incidents: [],
-          config: this.config
-        },
-        clearInvalidConfig: true // 自动清理无效的配置
+          config: DEFAULT_CACHE_CONFIG
+        }
       })
       
-      // 验证并修复配置
-      this.validateAndRepairStore()
-      
-      // 加载配置
-      const savedConfig = this.store.get('config') as PagerDutyConfig['cache']
-      if (savedConfig) {
-        this.config = { ...this.config, ...savedConfig }
-      }
+      this.loadConfig()
+      this.loadCache()
       
       console.log('CacheService 初始化成功:', {
         config: this.config,
@@ -38,45 +27,18 @@ class CacheService {
       })
     } catch (error) {
       console.error('CacheService 初始化失败:', error)
-      // 如果初始化失败，使用默认配置继续运行
-      this.store = new Store({
-        name: 'cache',
-        defaults: {
-          incidents: [],
-          config: this.config
-        }
-      })
     }
-    this.loadCache()
   }
 
-  private validateAndRepairStore() {
-    console.log('验证并修复存储...')
-    try {
-      // 验证 incidents 数组
-      const incidents = this.store.get('incidents')
-      if (!Array.isArray(incidents)) {
-        console.log('incidents 不是数组，重置为空数组')
-        this.store.set('incidents', [])
-      }
-
-      // 验证配置对象
-      const config = this.store.get('config')
-      if (!config || typeof config !== 'object') {
-        console.log('config 无效，使用默认配置')
-        this.store.set('config', this.config)
-      }
-    } catch (error) {
-      console.error('存储验证/修复失败:', error)
-      // 重置为默认值
-      this.store.clear()
-      this.store.set('incidents', [])
-      this.store.set('config', this.config)
-    }
+  private loadConfig() {
+    const savedConfig = this.store.get('config')
+    this.config = { ...DEFAULT_CACHE_CONFIG, ...savedConfig }
   }
 
   public setConfig(config: PagerDutyConfig['cache']) {
-    this.config = config
+    if (!config) return
+    this.config = { ...DEFAULT_CACHE_CONFIG, ...config }
+    this.store.set('config', this.config)
     this.cleanExpiredCache()
   }
 
