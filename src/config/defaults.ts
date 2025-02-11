@@ -36,7 +36,7 @@ export const DEFAULT_CONFIG: PagerDutyConfig = {
   pollingInterval: 30000,
   urgencyFilter: ['high'],
   statusFilter: ['triggered', 'acknowledged'],
-  showOnlyNewAlerts: false,
+  showOnlyNewAlerts: true,
   lastCheckedTime: new Date().toISOString(),
   notification: DEFAULT_NOTIFICATION_CONFIG,
   appearance: DEFAULT_APPEARANCE_CONFIG,

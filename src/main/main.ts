@@ -29,6 +29,7 @@ export class PagerDutyMenuBar {
     low: 0
   }
   private hasActiveNotification = false
+  private hasShownApiKeyWarning = false
 
   constructor() {
     console.log('PagerDutyMenuBar 构造函数开始...')
@@ -167,35 +168,47 @@ export class PagerDutyMenuBar {
       console.log('设置主题:', theme)
       themeService.setTheme(theme)
 
+      // 先设置 IPC 通信
+      console.log('设置 IPC 通信...')
+      this.setupIPC()
+
       // 初始化窗口管理器
+      console.log('初始化窗口管理器...')
       this.settingsWindow = new SettingsWindow()
       this.notificationWindow = NotificationWindow.getInstance()
 
-      // 创建托盘和窗口
+      // 创建托盘
       console.log('开始创建托盘...')
       await this.createTray()
-      console.log('托盘创建完成，开始创建窗口...')
+      console.log('托盘创建完成')
+
+      // 等待一小段时间确保 IPC 已完全注册
+      await new Promise(resolve => setTimeout(resolve, 100))
       
-      // 等待窗口创建和加载完成
+      // 创建并加载窗口
+      console.log('开始创建窗口...')
       await this.createWindow(config.appearance || { theme: 'light', windowSize: { width: 400, height: 600 } })
       if (!this.window) {
         throw new Error('Failed to create window')
       }
 
-      const window = this.window
+      // 等待页面加载完成
       console.log('等待页面加载...')
       await new Promise<void>((resolve) => {
         const onLoad = () => {
           console.log('页面加载完成')
-          window.webContents.removeListener('did-finish-load', onLoad)
+          this.window?.webContents.removeListener('did-finish-load', onLoad)
           resolve()
         }
-        window.webContents.on('did-finish-load', onLoad)
+        this.window?.webContents.on('did-finish-load', onLoad)
       })
 
-      // 设置 IPC 通信
-      console.log('设置 IPC 通信...')
-      this.setupIPC()
+      // 通知渲染进程 IPC 已就绪
+      console.log('通知渲染进程 IPC 已就绪')
+      this.window?.webContents.send('ipc-ready')
+
+      // 验证 API 密钥
+      await this.validateApiKey()
 
       // 启动轮询
       console.log('启动轮询...')
@@ -205,6 +218,69 @@ export class PagerDutyMenuBar {
     } catch (error) {
       console.error('初始化过程出错:', error)
       throw error
+    }
+  }
+
+  private resetIncidentState() {
+    console.log('重置告警状态...')
+    this.lastIncidentIds = new Set()
+    this.lastValidIncidents = []
+    this.lastCheckedTime = new Date().toISOString()
+    this.pendingNotifications = {
+      high: 0,
+      low: 0
+    }
+  }
+
+  private async validateApiKey() {
+    if (this.hasShownApiKeyWarning) return
+
+    const config = this.store.get('config') as PagerDutyConfig
+    if (!config.apiKey) {
+      console.log('未配置 API 密钥')
+      notificationService.showNotification({
+        title: 'PagerDuty Alert',
+        body: '请先配置 PagerDuty API 密钥',
+        urgency: 'high',
+        onClick: () => {
+          this.settingsWindow?.show()
+        }
+      })
+      this.hasShownApiKeyWarning = true
+      return
+    }
+
+    try {
+      const response = await fetch('https://api.pagerduty.com/users/me', {
+        headers: {
+          'Accept': 'application/vnd.pagerduty+json;version=2',
+          'Authorization': `Token token=${config.apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        console.log('API 密钥无效')
+        notificationService.showNotification({
+          title: 'PagerDuty Alert',
+          body: 'API 密钥无效，请检查配置',
+          urgency: 'high',
+          onClick: () => {
+            this.settingsWindow?.show()
+          }
+        })
+        this.hasShownApiKeyWarning = true
+      }
+    } catch (error) {
+      console.error('验证 API 密钥失败:', error)
+      notificationService.showNotification({
+        title: 'PagerDuty Alert',
+        body: '无法验证 API 密钥，请检查网络连接',
+        urgency: 'high',
+        onClick: () => {
+          this.settingsWindow?.show()
+        }
+      })
+      this.hasShownApiKeyWarning = true
     }
   }
 
@@ -547,7 +623,25 @@ export class PagerDutyMenuBar {
   }
 
   private setupIPC() {
+    console.log('开始注册 IPC 处理器...')
+    
+    // 移除所有现有的 IPC 处理器
+    ipcMain.removeHandler('get-config')
+    ipcMain.removeHandler('save-config')
+    ipcMain.removeHandler('config-changed')
+    ipcMain.removeHandler('show-settings-window')
+    ipcMain.removeHandler('close-settings-window')
+    ipcMain.removeHandler('acknowledge-incident')
+    ipcMain.removeHandler('get-incident-details')
+    ipcMain.removeHandler('fetch-incidents')
+    ipcMain.removeHandler('update-tray-icon')
+    ipcMain.removeHandler('test-proxy')
+    ipcMain.removeHandler('get-theme-mode')
+    ipcMain.removeHandler('get-all-incidents')
+
+    // 重新注册所有 IPC 处理器
     ipcMain.handle('get-config', () => {
+      console.log('处理 get-config 请求')
       return this.store.get('config')
     })
 
@@ -583,6 +677,49 @@ export class PagerDutyMenuBar {
           maxItems: config.cache?.maxItems
         }
       })
+
+      // 检查 API 密钥是否发生变化
+      const oldConfig = this.store.get('config') as PagerDutyConfig
+      const apiKeyChanged = oldConfig.apiKey !== config.apiKey
+      const showOnlyNewAlertsChanged = oldConfig.showOnlyNewAlerts !== config.showOnlyNewAlerts
+
+      // 如果 API 密钥已更改，验证新密钥
+      if (apiKeyChanged && config.apiKey) {
+        console.log('API 密钥已更改，开始验证')
+        try {
+          const response = await fetch('https://api.pagerduty.com/users/me', {
+            headers: {
+              'Accept': 'application/vnd.pagerduty+json;version=2',
+              'Authorization': `Token token=${config.apiKey}`
+            }
+          })
+
+          if (!response.ok) {
+            console.log('新 API 密钥无效')
+            notificationService.showNotification({
+              title: 'PagerDuty Alert',
+              body: 'API 密钥无效，请检查配置',
+              urgency: 'high'
+            })
+            return { success: false, error: 'Invalid API key' }
+          }
+          
+          console.log('API 密钥验证成功')
+        } catch (error) {
+          console.error('API 密钥验证失败:', error)
+          notificationService.showNotification({
+            title: 'PagerDuty Alert',
+            body: '无法验证 API 密钥，请检查网络连接',
+            urgency: 'high'
+          })
+          return { success: false, error: 'Failed to validate API key' }
+        }
+      }
+
+      // 如果显示模式改变，重置状态
+      if (showOnlyNewAlertsChanged || apiKeyChanged) {
+        this.resetIncidentState()
+      }
 
       // 应用主题设置
       if (config.appearance.theme === 'system') {
@@ -762,20 +899,8 @@ export class PagerDutyMenuBar {
 
     ipcMain.handle('fetch-incidents', async () => {
       try {
-        // 如果正在获取中，等待当前获取完成
-        if (this.isFetching) {
-          console.log('等待当前获取完成...')
-          await new Promise(resolve => {
-            const checkInterval = setInterval(() => {
-              if (!this.isFetching) {
-                clearInterval(checkInterval)
-                resolve(true)
-              }
-            }, 100)
-          })
-        }
         return await this.fetchIncidents()
-      } catch (error: unknown) {
+      } catch (error) {
         console.error('获取告警失败:', error)
         return []
       }
@@ -783,8 +908,7 @@ export class PagerDutyMenuBar {
 
     ipcMain.handle('update-tray-icon', async (event, { incidents = [] }) => {
       try {
-        // 只更新图标，不处理新告警通知
-        this.updateTrayIcon(incidents, [])
+        this.updateTrayIcon(incidents)
       } catch (error) {
         console.error('更新托盘图标失败:', error)
       }

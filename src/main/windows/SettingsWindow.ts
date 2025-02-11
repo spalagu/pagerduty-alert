@@ -1,10 +1,81 @@
-import { BrowserWindow, nativeTheme, app } from 'electron'
+import { BrowserWindow, nativeTheme, app, ipcMain } from 'electron'
 import * as path from 'path'
+import type { PagerDutyConfig } from '../../types'
+import { notificationService } from '../../services/NotificationService'
 
 export class SettingsWindow {
   private window: BrowserWindow | null = null
+  private lastValidatedApiKey: string = ''
 
-  constructor() {}
+  constructor() {
+    this.setupIPC()
+  }
+
+  private setupIPC() {
+    // 添加配置保存的处理
+    ipcMain.handle('settings-save-config', async (event, newConfig: PagerDutyConfig, oldConfig: PagerDutyConfig) => {
+      console.log('处理配置保存请求:', {
+        hasNewApiKey: !!newConfig.apiKey,
+        hasOldApiKey: !!oldConfig.apiKey,
+        apiKeyChanged: newConfig.apiKey !== oldConfig.apiKey
+      })
+
+      // 检查 API 密钥是否发生变化
+      if (newConfig.apiKey !== oldConfig.apiKey && newConfig.apiKey !== this.lastValidatedApiKey) {
+        console.log('API 密钥已更改，开始验证')
+        
+        try {
+          const isValid = await this.validateApiKey(newConfig.apiKey)
+          if (!isValid) {
+            console.log('API 密钥验证失败')
+            notificationService.showNotification({
+              title: 'PagerDuty Alert',
+              body: 'API 密钥无效，请检查配置',
+              urgency: 'high'
+            })
+            return { success: false, error: 'Invalid API key' }
+          }
+          
+          // 更新最后验证的密钥
+          this.lastValidatedApiKey = newConfig.apiKey
+          console.log('API 密钥验证成功')
+          
+        } catch (error) {
+          console.error('API 密钥验证过程出错:', error)
+          notificationService.showNotification({
+            title: 'PagerDuty Alert',
+            body: '无法验证 API 密钥，请检查网络连接',
+            urgency: 'high'
+          })
+          return { success: false, error: 'Failed to validate API key' }
+        }
+      }
+
+      return { success: true }
+    })
+  }
+
+  private async validateApiKey(apiKey: string): Promise<boolean> {
+    if (!apiKey) return false
+
+    try {
+      console.log('验证 API 密钥...')
+      const response = await fetch('https://api.pagerduty.com/users/me', {
+        headers: {
+          'Accept': 'application/vnd.pagerduty+json;version=2',
+          'Authorization': `Token token=${apiKey}`
+        }
+      })
+
+      const isValid = response.ok
+      console.log('API 密钥验证结果:', { isValid, status: response.status })
+      return isValid
+      
+    } catch (error) {
+      console.error('API 密钥验证请求失败:', error)
+      throw error
+    }
+  }
 
   public createWindow() {
     if (this.window) {

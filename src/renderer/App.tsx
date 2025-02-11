@@ -7,7 +7,7 @@ import { SkeletonCard } from './components/SkeletonCard'
 import { EmptyState } from './components/EmptyState'
 import { Toaster, toast } from 'react-hot-toast'
 
-export const App = () => {
+export const App: React.FC = () => {
     const [incidents, setIncidents] = useState<Incident[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -16,6 +16,7 @@ export const App = () => {
     const listRef = useRef<HTMLDivElement>(null)
     const [scrollPosition, setScrollPosition] = useState(0)
     const [theme, setTheme] = useState<'light' | 'dark'>('light')
+    const [isIpcReady, setIsIpcReady] = useState(false)
 
     // 更新托盘图标状态
     const updateTrayIcon = useCallback(async (incidents: Incident[]) => {
@@ -163,6 +164,46 @@ export const App = () => {
         return () => clearInterval(interval)
     }, [loadIncidents])
 
+    useEffect(() => {
+        // 监听 IPC 就绪事件
+        const handleIpcReady = () => {
+            console.log('IPC 已就绪')
+            setIsIpcReady(true)
+        }
+        
+        window.electron.ipcRenderer.on('ipc-ready', handleIpcReady)
+        
+        return () => {
+            window.electron.ipcRenderer.removeListener('ipc-ready', handleIpcReady)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!isIpcReady) {
+            console.log('等待 IPC 就绪...')
+            return
+        }
+
+        const initializeApp = async () => {
+            try {
+                setIsLoading(true)
+                // 获取配置
+                const config = await window.electron.ipcRenderer.invoke('get-config')
+                // 获取告警列表
+                const incidents = await window.electron.ipcRenderer.invoke('fetch-incidents')
+                // 更新托盘图标
+                await window.electron.ipcRenderer.invoke('update-tray-icon', { incidents })
+                
+                setIsLoading(false)
+            } catch (error) {
+                console.error('初始化失败:', error)
+                setIsLoading(false)
+            }
+        }
+
+        initializeApp()
+    }, [isIpcReady])
+
     const handleAcknowledge = async (incident: Incident) => {
         try {
             setIsRefreshing(true)
@@ -250,6 +291,19 @@ export const App = () => {
                     </motion.div>
                 ))}
             </AnimatePresence>
+        )
+    }
+
+    if (!isIpcReady || isLoading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        {!isIpcReady ? '正在初始化...' : '加载中...'}
+                    </p>
+                </div>
+            </div>
         )
     }
 
