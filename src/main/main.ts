@@ -31,10 +31,88 @@ export class PagerDutyMenuBar {
 
   constructor() {
     console.log('PagerDutyMenuBar 构造函数开始...')
-    this.store = new Store()
-    this.appStartTime = new Date().toISOString()
-    this.lastCheckedTime = this.appStartTime
-    this.lastIncidentIds = new Set()  // 初始化为空集合
+    try {
+      // 创建 store 实例时提供默认配置
+      this.store = new Store({
+        name: 'pagerduty',
+        defaults: {
+          config: {
+            apiKey: '',
+            pollingInterval: 30000,
+            urgencyFilter: ['high'],
+            statusFilter: ['triggered', 'acknowledged'],
+            showOnlyNewAlerts: false,
+            lastCheckedTime: new Date().toISOString(),
+            notification: {
+              enabled: true,
+              sound: true,
+              grouping: true,
+              criticalPersistent: true,
+              clickToShow: true
+            },
+            appearance: {
+              theme: 'system',
+              windowSize: {
+                width: 400,
+                height: 800
+              }
+            },
+            system: {
+              autoLaunch: false,
+              proxy: {
+                enabled: false,
+                server: '',
+                bypass: '<local>'
+              }
+            },
+            cache: {
+              enabled: true,
+              maxAge: 24 * 60 * 60 * 1000,
+              maxItems: 1000
+            }
+          }
+        },
+        clearInvalidConfig: true
+      })
+
+      // 验证并修复配置
+      this.validateAndRepairConfig()
+      
+      this.appStartTime = new Date().toISOString()
+      this.lastCheckedTime = this.appStartTime
+      this.lastIncidentIds = new Set()
+      
+      console.log('PagerDutyMenuBar 初始化成功')
+    } catch (error) {
+      console.error('PagerDutyMenuBar 初始化失败:', error)
+      // 如果初始化失败，使用新的空 Store
+      this.store = new Store({
+        name: 'pagerduty',
+        defaults: {
+          config: {
+            apiKey: '',
+            pollingInterval: 30000,
+            urgencyFilter: ['high'],
+            statusFilter: ['triggered', 'acknowledged'],
+            showOnlyNewAlerts: false,
+            notification: {
+              enabled: true,
+              sound: true,
+              grouping: true,
+              criticalPersistent: true,
+              clickToShow: true
+            },
+            appearance: {
+              theme: 'system',
+              windowSize: {
+                width: 400,
+                height: 600
+              }
+            }
+          }
+        }
+      })
+    }
     
     // 修改 before-quit 事件监听
     app.on('before-quit', async (event) => {
@@ -57,12 +135,10 @@ export class PagerDutyMenuBar {
     // 修改 window-all-closed 事件处理
     app.on('window-all-closed', () => {
       console.log('所有窗口已关闭')
-      // 如果已经在退出过程中，不做任何处理
       if (this.isQuitting) {
         console.log('正在退出过程中，忽略 window-all-closed 事件')
         return
       }
-      // 如果不是 macOS，直接退出
       if (process.platform !== 'darwin') {
         console.log('非 macOS 平台，触发应用退出')
         app.quit()
@@ -77,6 +153,58 @@ export class PagerDutyMenuBar {
     })
   }
 
+  private validateAndRepairConfig() {
+    console.log('验证并修复主配置...')
+    try {
+      const config = this.store.get('config') as PagerDutyConfig
+      if (!config || typeof config !== 'object') {
+        console.log('主配置无效，使用默认配置')
+        this.store.set('config', this.store.get('defaults.config'))
+        return
+      }
+
+      // 验证必要的配置项
+      let needsRepair = false
+
+      // 验证 notification 配置
+      if (!config.notification || typeof config.notification !== 'object') {
+        console.log('notification 配置无效，使用默认值')
+        config.notification = this.store.get('defaults.config.notification')
+        needsRepair = true
+      }
+
+      // 验证 appearance 配置
+      if (!config.appearance || typeof config.appearance !== 'object') {
+        console.log('appearance 配置无效，使用默认值')
+        config.appearance = this.store.get('defaults.config.appearance')
+        needsRepair = true
+      }
+
+      // 验证 system 配置
+      if (!config.system || typeof config.system !== 'object') {
+        console.log('system 配置无效，使用默认值')
+        config.system = this.store.get('defaults.config.system')
+        needsRepair = true
+      }
+
+      // 验证 cache 配置
+      if (!config.cache || typeof config.cache !== 'object') {
+        console.log('cache 配置无效，使用默认值')
+        config.cache = this.store.get('defaults.config.cache')
+        needsRepair = true
+      }
+
+      if (needsRepair) {
+        this.store.set('config', config)
+      }
+    } catch (error) {
+      console.error('配置验证/修复失败:', error)
+      // 重置为默认值
+      this.store.clear()
+      this.store.set('config', this.store.get('defaults.config'))
+    }
+  }
+
   private async init() {
     try {
       console.log('等待应用就绪...')
@@ -84,7 +212,7 @@ export class PagerDutyMenuBar {
       console.log('应用初始化开始...')
 
       // 获取配置
-      const config = await this.store.get('config') as PagerDutyConfig
+      const config = this.store.get('config') as PagerDutyConfig
       console.log('当前配置:', config)
 
       // 设置主题
