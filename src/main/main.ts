@@ -12,6 +12,7 @@ import { NotificationWindow } from './windows/NotificationWindow'
 import { DEFAULT_CONFIG } from '../config/defaults'
 import { logService } from '../services/LogService'
 import { LogViewerWindow } from './windows/LogViewerWindow'
+import { pollingManager } from '../services/PollingManager'
 
 export class PagerDutyMenuBar {
   private tray: Tray | null = null
@@ -20,10 +21,10 @@ export class PagerDutyMenuBar {
   private store: Store<any>
   private isQuitting = false
   private pollingTimer: NodeJS.Timeout | null = null
+  private isPollingInitialized = false
   private lastValidIncidents: Incident[] = []
   private notificationWindow: NotificationWindow | null = null
   private lastIncidentIds: Set<string> = new Set()
-  private isFetching = false
   private lastCheckedTime: string = new Date().toISOString()
   private appStartTime: string = new Date().toISOString()
   private pendingNotifications = {
@@ -314,7 +315,8 @@ export class PagerDutyMenuBar {
   }
 
   private async cleanup() {
-    console.log('开始清理资源...')
+    logService.info('开始清理资源...')
+    pollingManager.cleanup()
     
     // 设置退出标志
     this.isQuitting = true
@@ -958,12 +960,6 @@ export class PagerDutyMenuBar {
   }
 
   private async fetchIncidents(): Promise<Incident[]> {
-    if (this.isFetching) {
-      logService.info('[fetchIncidents] 已有请求正在进行，跳过本次请求')
-      return this.lastValidIncidents
-    }
-    
-    this.isFetching = true
     logService.info('[fetchIncidents] ========== 开始获取告警 ==========')
     
     try {
@@ -982,11 +978,6 @@ export class PagerDutyMenuBar {
       params.append('limit', '100')
       params.append('total', 'true')
       params.append('sort_by', 'created_at:desc')
-
-      logService.info('[fetchIncidents] 发起 API 请求', { 
-        params: params.toString(),
-        filters: { statusFilter, urgencyFilter, showOnlyNewAlerts }
-      })
       
       const response = await fetch(`https://api.pagerduty.com/incidents?${params.toString()}`, {
         headers: {
@@ -996,63 +987,24 @@ export class PagerDutyMenuBar {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`获取告警失败: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
-      const incidents = data.incidents || []
+      const incidents = data.incidents as Incident[]
       
-      logService.info('[fetchIncidents] 获取告警成功', { 
-        count: incidents.length,
-        status: response.status
-      })
-      
-      if (showOnlyNewAlerts) {
-        const currentIds: Set<string> = new Set(incidents.map((inc: Incident) => inc.id))
-        const newIncidents = incidents.filter((inc: Incident) => !this.lastIncidentIds.has(inc.id))
-        
-        if (newIncidents.length > 0) {
-          logService.info('[fetchIncidents] 发现新告警', { 
-            count: newIncidents.length,
-            ids: newIncidents.map((incident: Incident) => incident.id)
-          })
-          
-          this.updateTrayIcon(incidents, newIncidents)
-          this.window?.webContents.send('incidents-updated', incidents)
-          
-          if (config.notification?.enabled) {
-            newIncidents.forEach((inc: Incident) => {
-              if (inc.urgency === 'high') {
-                this.pendingNotifications.high++
-              } else {
-                this.pendingNotifications.low++
-              }
-            })
-
-            if (!this.hasActiveNotification) {
-              this.showPendingNotifications(config)
-            }
-          }
-        } else {
-          logService.info('[fetchIncidents] 没有新告警')
-          this.updateTrayIcon(incidents)
-        }
-        
-        this.lastIncidentIds = currentIds
-      } else {
-        logService.info('[fetchIncidents] 显示所有告警')
-        this.updateTrayIcon(incidents)
-      }
-
-      this.lastCheckedTime = new Date().toISOString()
+      // 缓存有效的告警列表
       this.lastValidIncidents = incidents
+      
+      // 更新最后检查时间
+      this.lastCheckedTime = new Date().toISOString()
+      
       return incidents
     } catch (error) {
-      logService.error('[fetchIncidents] 获取告警失败', { error })
-      return this.lastValidIncidents
+      logService.error('[fetchIncidents] 获取告警失败:', error)
+      return this.lastValidIncidents // 发生错误时返回上次的有效结果
     } finally {
-      this.isFetching = false
-      logService.info('[fetchIncidents] ========== 获取告警完成 ==========')
+      logService.info('[fetchIncidents] ========== 获取告警结束 ==========')
     }
   }
 
@@ -1135,36 +1087,37 @@ export class PagerDutyMenuBar {
   }
 
   private async startPolling() {
+    if (this.isPollingInitialized) {
+      logService.info('[startPolling] 轮询已初始化，忽略重复调用')
+      return
+    }
+
     const config = this.store.get('config') as PagerDutyConfig
+    logService.info('[startPolling] 开始轮询', { interval: config.pollingInterval })
     
-    if (this.pollingTimer) {
-      logService.info('[startPolling] 清理旧的轮询定时器')
-      clearInterval(this.pollingTimer)
+    // 确保在开发环境下不会重复初始化
+    if (process.env.NODE_ENV === 'development') {
+      logService.info('[startPolling] 开发环境下重置 PollingManager')
+      pollingManager.cleanup()
     }
-
-    logService.info('[startPolling] 设置新的轮询定时器', { 
-      interval: config.pollingInterval
-    })
     
-    this.pollingTimer = setInterval(async () => {
+    // 启动轮询，PollingManager 内部会处理重复初始化的情况
+    pollingManager.start(config.pollingInterval, async () => {
       try {
-        await this.fetchIncidents()
+        const incidents = await this.fetchIncidents()
+        this.updateTrayIcon(incidents)
+        this.window?.webContents.send('incidents-updated', incidents)
       } catch (error) {
-        logService.error('[startPolling] 定时获取告警失败', { error })
+        logService.error('[startPolling] 轮询回调执行失败:', error)
       }
-    }, config.pollingInterval)
+    })
 
-    try {
-      logService.info('[startPolling] 执行首次告警获取')
-      const incidents = await this.fetchIncidents()
-      this.lastIncidentIds = new Set(incidents.map((inc: Incident) => inc.id))
-      logService.info('[startPolling] 首次告警获取完成', { 
-        incidentCount: incidents.length,
-        knownIds: Array.from(this.lastIncidentIds)
-      })
-    } catch (error) {
-      logService.error('[startPolling] 首次告警获取失败', { error })
-    }
+    this.isPollingInitialized = true
+  }
+
+  private async handleConfigChange() {
+    this.isPollingInitialized = false
+    await this.startPolling()
   }
 
   private updateTrayIcon(incidents: Incident[], newIncidents: Incident[] = []) {

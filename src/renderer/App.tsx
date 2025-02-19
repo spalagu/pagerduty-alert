@@ -155,13 +155,6 @@ export const App: React.FC = () => {
     useEffect(() => {
         // 初始加载
         loadIncidents(true)
-
-        // 设置轮询
-        const interval = setInterval(() => {
-            loadIncidents(false)
-        }, 30000) // 30秒轮询一次
-
-        return () => clearInterval(interval)
     }, [loadIncidents])
 
     useEffect(() => {
