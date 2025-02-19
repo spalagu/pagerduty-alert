@@ -1,44 +1,24 @@
 import React, { useState, useEffect } from 'react'
 import { AppearanceSettings } from '../components/AppearanceSettings'
 import { SystemSettings } from '../components/SystemSettings'
-import type { PagerDutyConfig } from '../../types'
+import type { PagerDutyConfig, LogLevel } from '../../types'
+import { DEFAULT_CONFIG } from '../../config/defaults'
 
 export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'system' | 'notification'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'system' | 'notification' | 'log'>('general')
   const [config, setConfig] = useState<PagerDutyConfig>({
+    ...DEFAULT_CONFIG,
     apiKey: '',
     pollingInterval: 30000,
-    urgencyFilter: ['high', 'low'],
-    statusFilter: ['triggered', 'acknowledged', 'resolved'],
+    urgencyFilter: ['high'],
+    statusFilter: ['triggered', 'acknowledged'],
     showOnlyNewAlerts: false,
     lastCheckedTime: new Date().toISOString(),
-    notification: {
-      enabled: true,
-      sound: true,
-      grouping: true,
-      criticalPersistent: true,
-      clickToShow: true
-    },
-    appearance: {
-      theme: 'system',
-      windowSize: {
-        width: 400,
-        height: 800
-      }
-    },
-    system: {
-      autoLaunch: false,
-      proxy: {
-        enabled: false,
-        server: '',
-        bypass: '<local>'
-      }
-    },
-    cache: {
-      enabled: true,
-      maxAge: 24 * 60 * 60 * 1000,
-      maxItems: 1000
-    }
+    notification: DEFAULT_CONFIG.notification,
+    appearance: DEFAULT_CONFIG.appearance,
+    system: DEFAULT_CONFIG.system,
+    cache: DEFAULT_CONFIG.cache,
+    log: DEFAULT_CONFIG.log
   })
 
   useEffect(() => {
@@ -357,6 +337,58 @@ export const Settings: React.FC = () => {
       case 'system':
         return <SystemSettings config={config} onChange={handleConfigChange} />
       
+      case 'log':
+        return (
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              日志设置
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">启用日志</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={config.log.enabled}
+                    onChange={e => handleConfigChange({
+                      log: { ...config.log, enabled: e.target.checked }
+                    })}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">日志级别</span>
+                <select
+                  value={config.log.level}
+                  onChange={e => handleConfigChange({
+                    log: { ...config.log, level: e.target.value as LogLevel }
+                  })}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-sm"
+                  disabled={!config.log.enabled}
+                >
+                  <option value="debug">Debug</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warn</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => window.electron.ipcRenderer.invoke('show-log-viewer')}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md text-sm transition-colors"
+                  disabled={!config.log.enabled}
+                >
+                  查看日志
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      
       default:
         return null
     }
@@ -415,6 +447,18 @@ export const Settings: React.FC = () => {
                 `}
               >
                 系统
+              </button>
+              <button
+                onClick={() => setActiveTab('log')}
+                className={`
+                  whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
+                  ${activeTab === 'log'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                日志
               </button>
             </nav>
           </div>

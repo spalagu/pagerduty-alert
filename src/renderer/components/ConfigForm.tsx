@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import type { PagerDutyConfig } from '../../types'
+import { DEFAULT_CONFIG } from '../../config/defaults'
 
 interface Props {
   initialConfig?: PagerDutyConfig
@@ -9,39 +10,18 @@ interface Props {
 
 export const ConfigForm: React.FC<Props> = ({ initialConfig, onSave, onCancel }) => {
   const [config, setConfig] = useState<PagerDutyConfig>({
+    ...DEFAULT_CONFIG,
     apiKey: initialConfig?.apiKey || '',
     pollingInterval: initialConfig?.pollingInterval || 30000,
-    urgencyFilter: initialConfig?.urgencyFilter || ['high', 'low'],
-    statusFilter: initialConfig?.statusFilter || ['triggered', 'acknowledged', 'resolved'],
-    showOnlyNewAlerts: initialConfig?.showOnlyNewAlerts || false,
+    urgencyFilter: initialConfig?.urgencyFilter || ['high'],
+    statusFilter: initialConfig?.statusFilter || ['triggered', 'acknowledged'],
+    showOnlyNewAlerts: initialConfig?.showOnlyNewAlerts || true,
     lastCheckedTime: initialConfig?.lastCheckedTime || new Date().toISOString(),
-    notification: {
-      enabled: initialConfig?.notification?.enabled ?? true,
-      sound: initialConfig?.notification?.sound ?? true,
-      grouping: initialConfig?.notification?.grouping ?? true,
-      criticalPersistent: initialConfig?.notification?.criticalPersistent ?? true,
-      clickToShow: initialConfig?.notification?.clickToShow ?? true
-    },
-    appearance: {
-      theme: initialConfig?.appearance?.theme || 'system',
-      windowSize: {
-        width: initialConfig?.appearance?.windowSize?.width || 400,
-        height: initialConfig?.appearance?.windowSize?.height || 800
-      }
-    },
-    system: {
-      autoLaunch: initialConfig?.system?.autoLaunch || false,
-      proxy: {
-        enabled: initialConfig?.system?.proxy?.enabled || false,
-        server: initialConfig?.system?.proxy?.server || '',
-        bypass: initialConfig?.system?.proxy?.bypass || '<local>'
-      }
-    },
-    cache: {
-      enabled: initialConfig?.cache?.enabled ?? true,
-      maxAge: initialConfig?.cache?.maxAge || 24 * 60 * 60 * 1000, // 24小时
-      maxItems: initialConfig?.cache?.maxItems || 1000
-    }
+    notification: initialConfig?.notification || DEFAULT_CONFIG.notification,
+    appearance: initialConfig?.appearance || DEFAULT_CONFIG.appearance,
+    system: initialConfig?.system || DEFAULT_CONFIG.system,
+    cache: initialConfig?.cache || DEFAULT_CONFIG.cache,
+    log: initialConfig?.log || DEFAULT_CONFIG.log
   })
 
   const handleSubmit = (e: React.FormEvent) => {

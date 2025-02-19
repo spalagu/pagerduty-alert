@@ -1,5 +1,12 @@
 export type Theme = 'light' | 'dark' | 'system'
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+export interface LogConfig {
+  enabled: boolean
+  level: LogLevel
+}
+
 export interface PagerDutyConfig {
   apiKey: string
   pollingInterval: number
@@ -35,6 +42,7 @@ export interface PagerDutyConfig {
     maxAge: number
     maxItems: number
   }
+  log: LogConfig
 }
 
 export interface Incident {

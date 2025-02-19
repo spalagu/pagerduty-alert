@@ -1,4 +1,4 @@
-import type { PagerDutyConfig } from '../types'
+import type { PagerDutyConfig, LogConfig } from '../types'
 
 export const DEFAULT_NOTIFICATION_CONFIG: PagerDutyConfig['notification'] = {
   enabled: true,
@@ -31,6 +31,11 @@ export const DEFAULT_CACHE_CONFIG: PagerDutyConfig['cache'] = {
   maxItems: 1000
 }
 
+export const DEFAULT_LOG_CONFIG: LogConfig = {
+  enabled: true,
+  level: 'info'
+}
+
 export const DEFAULT_CONFIG: PagerDutyConfig = {
   apiKey: '',
   pollingInterval: 30000,
@@ -41,5 +46,6 @@ export const DEFAULT_CONFIG: PagerDutyConfig = {
   notification: DEFAULT_NOTIFICATION_CONFIG,
   appearance: DEFAULT_APPEARANCE_CONFIG,
   system: DEFAULT_SYSTEM_CONFIG,
-  cache: DEFAULT_CACHE_CONFIG
+  cache: DEFAULT_CACHE_CONFIG,
+  log: DEFAULT_LOG_CONFIG
 } 

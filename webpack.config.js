@@ -77,7 +77,8 @@ const rendererConfig = {
   entry: {
     index: './src/renderer/index.tsx',
     settings: './src/renderer/settings.tsx',
-    notification: './src/renderer/notification.tsx'
+    notification: './src/renderer/notification.tsx',
+    logviewer: './src/renderer/logviewer.tsx'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -98,6 +99,11 @@ const rendererConfig = {
       template: './src/renderer/notification.html',
       filename: 'notification.html',
       chunks: ['notification']
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/renderer/logviewer.html',
+      filename: 'logviewer.html',
+      chunks: ['logviewer']
     }),
     new MiniCssExtractPlugin({
       filename: '[name].css'

@@ -10,6 +10,8 @@ import { SettingsWindow } from './windows/SettingsWindow'
 import { notificationService } from '../services/NotificationService'
 import { NotificationWindow } from './windows/NotificationWindow'
 import { DEFAULT_CONFIG } from '../config/defaults'
+import { logService } from '../services/LogService'
+import { LogViewerWindow } from './windows/LogViewerWindow'
 
 export class PagerDutyMenuBar {
   private tray: Tray | null = null
@@ -638,6 +640,8 @@ export class PagerDutyMenuBar {
     ipcMain.removeHandler('test-proxy')
     ipcMain.removeHandler('get-theme-mode')
     ipcMain.removeHandler('get-all-incidents')
+    ipcMain.removeHandler('show-log-viewer')
+    ipcMain.removeHandler('get-logs')
 
     // 重新注册所有 IPC 处理器
     ipcMain.handle('get-config', () => {
@@ -675,6 +679,10 @@ export class PagerDutyMenuBar {
           enabled: config.cache?.enabled,
           maxAge: config.cache?.maxAge,
           maxItems: config.cache?.maxItems
+        },
+        log: {
+          enabled: config.log?.enabled,
+          level: config.log?.level
         }
       })
 
@@ -751,6 +759,9 @@ export class PagerDutyMenuBar {
       
       // 更新缓存设置
       cacheService.setConfig(config.cache)
+
+      // 更新日志设置
+      logService.setConfig(config.log)
       
       // 保存配置
       this.store.set('config', config)
@@ -766,6 +777,8 @@ export class PagerDutyMenuBar {
       this.notificationWindow?.setConfig({
         criticalPersistent: config.notification?.criticalPersistent ?? true
       })
+
+      return { success: true }
     })
 
     ipcMain.handle('config-changed', () => {
@@ -927,50 +940,31 @@ export class PagerDutyMenuBar {
       return this.window?.webContents.executeJavaScript('window.getAllIncidents()')
     })
 
-    // 注释掉测试通知的代码
-    // ipcMain.handle('test-notification', () => {
-    //   console.log('========== 测试通知开始 ==========')
-    //   console.log('收到测试通知请求')
-      
-    //   // 获取当前配置
-    //   const config = this.store.get('config') as PagerDutyConfig
-    //   console.log('当前通知配置:', {
-    //     enabled: config.notification?.enabled,
-    //     sound: config.notification?.sound,
-    //     grouping: config.notification?.grouping,
-    //     criticalPersistent: config.notification?.criticalPersistent
-    //   })
-      
-    //   // 测试高优先级通知
-    //   console.log('发送高优先级测试通知')
-    //   notificationService.showNotification({
-    //     title: '高优先级测试通知',
-    //     body: '这是一个高优先级的测试通知',
-    //     urgency: 'high'
-    //   })
+    // 添加日志查看处理器
+    ipcMain.handle('show-log-viewer', () => {
+      console.log('显示日志查看器')
+      LogViewerWindow.getInstance().show()
+    })
 
-    //   // 3秒后发送低优先级通知
-    //   setTimeout(() => {
-    //     console.log('发送低优先级测试通知')
-    //     notificationService.showNotification({
-    //       title: '低优先级测试通知',
-    //       body: '这是一个低优先级的测试通知',
-    //       urgency: 'low'
-    //     })
-    //   }, 3000)
-
-    //   console.log('========== 测试通知结束 ==========')
-    // })
+    ipcMain.handle('get-logs', async (event, days: number = 1) => {
+      console.log('获取日志内容, 天数:', days)
+      try {
+        return logService.getLogContent(days)
+      } catch (error) {
+        console.error('获取日志失败:', error)
+        return '获取日志失败'
+      }
+    })
   }
 
   private async fetchIncidents(): Promise<Incident[]> {
     if (this.isFetching) {
-      console.log('[fetchIncidents] 已有请求正在进行，跳过本次请求')
+      logService.info('[fetchIncidents] 已有请求正在进行，跳过本次请求')
       return this.lastValidIncidents
     }
     
     this.isFetching = true
-    console.log('[fetchIncidents] ========== 开始获取告警 ==========')
+    logService.info('[fetchIncidents] ========== 开始获取告警 ==========')
     
     try {
       const config = this.store.get('config') as PagerDutyConfig
@@ -982,16 +976,17 @@ export class PagerDutyMenuBar {
       
       if (showOnlyNewAlerts) {
         params.append('since', this.appStartTime)
-        console.log('[fetchIncidents] 启用只显示新告警，使用 since 参数:', this.appStartTime)
-      } else {
-        console.log('[fetchIncidents] 未启用只显示新告警，获取所有告警')
+        logService.info('[fetchIncidents] 启用只显示新告警', { since: this.appStartTime })
       }
       
       params.append('limit', '100')
       params.append('total', 'true')
       params.append('sort_by', 'created_at:desc')
 
-      console.log('[fetchIncidents] API 请求参数:', params.toString())
+      logService.info('[fetchIncidents] 发起 API 请求', { 
+        params: params.toString(),
+        filters: { statusFilter, urgencyFilter, showOnlyNewAlerts }
+      })
       
       const response = await fetch(`https://api.pagerduty.com/incidents?${params.toString()}`, {
         headers: {
@@ -1007,22 +1002,25 @@ export class PagerDutyMenuBar {
       const data = await response.json()
       const incidents = data.incidents || []
       
+      logService.info('[fetchIncidents] 获取告警成功', { 
+        count: incidents.length,
+        status: response.status
+      })
+      
       if (showOnlyNewAlerts) {
         const currentIds: Set<string> = new Set(incidents.map((inc: Incident) => inc.id))
         const newIncidents = incidents.filter((inc: Incident) => !this.lastIncidentIds.has(inc.id))
         
         if (newIncidents.length > 0) {
-          console.log('[fetchIncidents] 发现新告警:', newIncidents.length, '个')
+          logService.info('[fetchIncidents] 发现新告警', { 
+            count: newIncidents.length,
+            ids: newIncidents.map((incident: Incident) => incident.id)
+          })
           
-          // 立即更新图标状态
           this.updateTrayIcon(incidents, newIncidents)
-          
-          // 立即通知渲染进程
           this.window?.webContents.send('incidents-updated', incidents)
           
-          // 处理通知
           if (config.notification?.enabled) {
-            // 累计待显示的通知
             newIncidents.forEach((inc: Incident) => {
               if (inc.urgency === 'high') {
                 this.pendingNotifications.high++
@@ -1031,19 +1029,18 @@ export class PagerDutyMenuBar {
               }
             })
 
-            // 如果没有活动的通知，立即显示
             if (!this.hasActiveNotification) {
               this.showPendingNotifications(config)
             }
           }
         } else {
-          console.log('[fetchIncidents] 没有新告警')
+          logService.info('[fetchIncidents] 没有新告警')
           this.updateTrayIcon(incidents)
         }
         
         this.lastIncidentIds = currentIds
       } else {
-        console.log('[fetchIncidents] 显示所有告警')
+        logService.info('[fetchIncidents] 显示所有告警')
         this.updateTrayIcon(incidents)
       }
 
@@ -1051,11 +1048,11 @@ export class PagerDutyMenuBar {
       this.lastValidIncidents = incidents
       return incidents
     } catch (error) {
-      console.error('[fetchIncidents] 获取告警失败:', error)
+      logService.error('[fetchIncidents] 获取告警失败', { error })
       return this.lastValidIncidents
     } finally {
       this.isFetching = false
-      console.log('[fetchIncidents] ========== 获取告警完成 ==========')
+      logService.info('[fetchIncidents] ========== 获取告警完成 ==========')
     }
   }
 
@@ -1140,30 +1137,33 @@ export class PagerDutyMenuBar {
   private async startPolling() {
     const config = this.store.get('config') as PagerDutyConfig
     
-    // 清理旧的定时器
     if (this.pollingTimer) {
+      logService.info('[startPolling] 清理旧的轮询定时器')
       clearInterval(this.pollingTimer)
     }
 
-    // 设置新的定时器
-    console.log('设置轮询定时器, 间隔:', config.pollingInterval, 'ms')
+    logService.info('[startPolling] 设置新的轮询定时器', { 
+      interval: config.pollingInterval
+    })
+    
     this.pollingTimer = setInterval(async () => {
       try {
         await this.fetchIncidents()
       } catch (error) {
-        console.error('定时获取告警失败:', error)
+        logService.error('[startPolling] 定时获取告警失败', { error })
       }
     }, config.pollingInterval)
 
-    // 执行首次获取
     try {
-      console.log('执行首次告警获取...')
+      logService.info('[startPolling] 执行首次告警获取')
       const incidents = await this.fetchIncidents()
-      // 初始化 lastIncidentIds
       this.lastIncidentIds = new Set(incidents.map((inc: Incident) => inc.id))
-      console.log('首次告警获取完成, 已知告警ID:', Array.from(this.lastIncidentIds))
+      logService.info('[startPolling] 首次告警获取完成', { 
+        incidentCount: incidents.length,
+        knownIds: Array.from(this.lastIncidentIds)
+      })
     } catch (error) {
-      console.error('首次告警获取失败:', error)
+      logService.error('[startPolling] 首次告警获取失败', { error })
     }
   }
 
