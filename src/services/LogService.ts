@@ -73,10 +73,6 @@ class LogService {
   }
 
   public getLogContent(days: number = 1): string {
-    if (!this.config.enabled) {
-      return '日志功能已禁用'
-    }
-
     try {
       const today = new Date()
       const files = fs.readdirSync(this.logPath)

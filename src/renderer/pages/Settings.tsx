@@ -380,7 +380,6 @@ export const Settings: React.FC = () => {
                 <button
                   onClick={() => window.electron.ipcRenderer.invoke('show-log-viewer')}
                   className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md text-sm transition-colors"
-                  disabled={!config.log.enabled}
                 >
                   查看日志
                 </button>

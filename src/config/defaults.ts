@@ -33,7 +33,7 @@ export const DEFAULT_CACHE_CONFIG: PagerDutyConfig['cache'] = {
 
 export const DEFAULT_LOG_CONFIG: LogConfig = {
   enabled: true,
-  level: 'info'
+  level: 'error'
 }
 
 export const DEFAULT_CONFIG: PagerDutyConfig = {
