@@ -5,14 +5,29 @@ import type { LogLevel, LogConfig } from '../types'
 import { DEFAULT_LOG_CONFIG } from '../config/defaults'
 
 class LogService {
-  private logPath: string
+  private logPath: string = ''
   private config: LogConfig = DEFAULT_LOG_CONFIG
   private isDev = process.env.NODE_ENV === 'development'
+  private isReady = false
 
   constructor() {
-    this.logPath = path.join(app.getPath('userData'), 'logs')
-    if (!fs.existsSync(this.logPath)) {
-      fs.mkdirSync(this.logPath)
+    // 延迟初始化，等待 app ready
+    if (app.isReady()) {
+      this.initialize()
+    } else {
+      app.whenReady().then(() => this.initialize())
+    }
+  }
+
+  private initialize() {
+    try {
+      this.logPath = path.join(app.getPath('userData'), 'logs')
+      if (!fs.existsSync(this.logPath)) {
+        fs.mkdirSync(this.logPath)
+      }
+      this.isReady = true
+    } catch (error) {
+      console.error('LogService 初始化失败:', error)
     }
   }
 
@@ -53,6 +68,18 @@ class LogService {
   }
 
   private log(level: LogLevel, message: string, data?: any) {
+    // 如果服务未就绪，使用 console 输出
+    if (!this.isReady) {
+      const consoleMethod = {
+        'debug': console.debug,
+        'info': console.log,
+        'warn': console.warn,
+        'error': console.error
+      }[level]
+      consoleMethod(`[Early] ${message}`, data)
+      return
+    }
+
     if (!this.shouldLog(level)) {
       return
     }
@@ -67,7 +94,6 @@ class LogService {
         'warn': console.warn,
         'error': console.error
       }[level]
-      
       consoleMethod(message, data)
     }
 
@@ -100,6 +126,10 @@ class LogService {
   }
 
   public getLogContent(days: number = 1): string {
+    if (!this.isReady) {
+      return '日志服务未就绪'
+    }
+
     try {
       const today = new Date()
       const files = fs.readdirSync(this.logPath)
