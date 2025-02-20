@@ -7,6 +7,7 @@ import { DEFAULT_LOG_CONFIG } from '../config/defaults'
 class LogService {
   private logPath: string
   private config: LogConfig = DEFAULT_LOG_CONFIG
+  private isDev = process.env.NODE_ENV === 'development'
 
   constructor() {
     this.logPath = path.join(app.getPath('userData'), 'logs')
@@ -16,7 +17,6 @@ class LogService {
   }
 
   public setConfig(config: LogConfig) {
-    console.log('更新日志配置:', config)
     this.config = { ...DEFAULT_LOG_CONFIG, ...config }
   }
 
@@ -25,6 +25,12 @@ class LogService {
   }
 
   private shouldLog(level: LogLevel): boolean {
+    // 开发环境始终记录日志
+    if (this.isDev) {
+      return true
+    }
+    
+    // 生产环境根据配置和级别判断
     if (!this.config.enabled) {
       return false
     }
@@ -39,20 +45,41 @@ class LogService {
     return levels[level] >= levels[this.config.level]
   }
 
+  private formatMessage(level: LogLevel, message: string, data?: any): string {
+    const timestamp = new Date().toISOString()
+    return `${timestamp} [${level.toUpperCase()}] ${message}${
+      data ? ` ${JSON.stringify(data, null, 2)}` : ''
+    }\n`
+  }
+
   private log(level: LogLevel, message: string, data?: any) {
     if (!this.shouldLog(level)) {
       return
     }
 
-    const timestamp = new Date().toISOString()
-    const logLine = `${timestamp} [${level.toUpperCase()}] ${message}${
-      data ? ` ${JSON.stringify(data, null, 2)}` : ''
-    }\n`
+    const logLine = this.formatMessage(level, message, data)
 
-    try {
-      fs.appendFileSync(this.getLogFile(), logLine)
-    } catch (error) {
-      console.error('写入日志失败:', error)
+    // 开发环境下输出到控制台
+    if (this.isDev) {
+      const consoleMethod = {
+        'debug': console.debug,
+        'info': console.log,
+        'warn': console.warn,
+        'error': console.error
+      }[level]
+      
+      consoleMethod(message, data)
+    }
+
+    // 根据配置写入文件
+    if (this.config.enabled) {
+      try {
+        fs.appendFileSync(this.getLogFile(), logLine)
+      } catch (error) {
+        if (this.isDev) {
+          console.error('写入日志失败:', error)
+        }
+      }
     }
   }
 
@@ -89,12 +116,16 @@ class LogService {
         return '没有找到日志文件'
       }
 
-      return files.map(file => {
+      const result = files.map(file => {
         const content = fs.readFileSync(path.join(this.logPath, file), 'utf-8')
         return `=== ${file} ===\n${content}`
       }).join('\n\n')
+
+      return result
     } catch (error) {
-      console.error('读取日志失败:', error)
+      if (this.isDev) {
+        console.error('读取日志失败:', error)
+      }
       return '读取日志失败'
     }
   }

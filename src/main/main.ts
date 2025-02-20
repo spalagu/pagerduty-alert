@@ -964,12 +964,17 @@ export class PagerDutyMenuBar {
   }
 
   private async fetchIncidents(): Promise<Incident[]> {
-    logService.info('[fetchIncidents] ========== 开始获取告警 ==========')
-    
+    logService.info('[fetchIncidents] 开始获取告警')
     try {
       const config = this.store.get('config') as PagerDutyConfig
       const { statusFilter, urgencyFilter, showOnlyNewAlerts } = config
-      
+
+      if (!config.apiKey) {
+        logService.warn('[fetchIncidents] 未配置API密钥')
+        return []
+      }
+
+      // 构建查询参数
       const params = new URLSearchParams()
       statusFilter.forEach(status => params.append('statuses[]', status))
       urgencyFilter.forEach(urgency => params.append('urgencies[]', urgency))
@@ -982,7 +987,14 @@ export class PagerDutyMenuBar {
       params.append('limit', '100')
       params.append('total', 'true')
       params.append('sort_by', 'created_at:desc')
-      
+
+      logService.info('[fetchIncidents] API请求参数', {
+        statusFilter,
+        urgencyFilter,
+        showOnlyNewAlerts,
+        params: params.toString()
+      })
+
       const response = await fetch(`https://api.pagerduty.com/incidents?${params.toString()}`, {
         headers: {
           'Accept': 'application/vnd.pagerduty+json;version=2',
@@ -991,24 +1003,36 @@ export class PagerDutyMenuBar {
       })
 
       if (!response.ok) {
-        throw new Error(`获取告警失败: ${response.status} ${response.statusText}`)
+        logService.error('[fetchIncidents] API请求失败', {
+          status: response.status,
+          statusText: response.statusText
+        })
+        return []
       }
 
       const data = await response.json()
       const incidents = data.incidents as Incident[]
-      
-      // 缓存有效的告警列表
-      this.lastValidIncidents = incidents
-      
+
+      logService.info('[fetchIncidents] 获取告警成功', {
+        totalCount: incidents.length,
+        statusCounts: {
+          triggered: incidents.filter(i => i.status === 'triggered').length,
+          acknowledged: incidents.filter(i => i.status === 'acknowledged').length,
+          resolved: incidents.filter(i => i.status === 'resolved').length
+        },
+        urgencyCounts: {
+          high: incidents.filter(i => i.urgency === 'high').length,
+          low: incidents.filter(i => i.urgency === 'low').length
+        }
+      })
+
       // 更新最后检查时间
       this.lastCheckedTime = new Date().toISOString()
       
       return incidents
     } catch (error) {
-      logService.error('[fetchIncidents] 获取告警失败:', error)
-      return this.lastValidIncidents // 发生错误时返回上次的有效结果
-    } finally {
-      logService.info('[fetchIncidents] ========== 获取告警结束 ==========')
+      logService.error('[fetchIncidents] 获取告警出错', error)
+      return []
     }
   }
 
