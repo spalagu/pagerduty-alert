@@ -166,9 +166,13 @@ export class PagerDutyMenuBar {
       const config = this.store.get('config') as PagerDutyConfig
       console.log('当前配置:', config)
 
+      // 初始化日志服务
+      logService.setConfig(config.log)
+      logService.info('日志服务初始化完成', { config: config.log })
+
       // 设置主题
       const theme = config.appearance?.theme || 'light'
-      console.log('设置主题:', theme)
+      logService.info('设置主题', { theme })
       themeService.setTheme(theme)
 
       // 先设置 IPC 通信
@@ -1116,8 +1120,30 @@ export class PagerDutyMenuBar {
   }
 
   private async handleConfigChange() {
-    this.isPollingInitialized = false
+    logService.info('[handleConfigChange] 处理配置变更')
+    const config = this.store.get('config') as PagerDutyConfig
+    
+    // 更新日志配置
+    logService.setConfig(config.log)
+    logService.info('日志配置已更新', { config: config.log })
+    
+    // 更新其他服务配置
+    themeService.setTheme(config.appearance.theme)
+    systemService.setConfig(config.system)
+    cacheService.setConfig(config.cache)
+    
+    // 更新通知配置
+    if (this.notificationWindow) {
+      this.notificationWindow.setConfig({
+        criticalPersistent: config.notification.criticalPersistent
+      })
+    }
+    
+    // 重新启动轮询
     await this.startPolling()
+    
+    // 通知渲染进程配置已更改
+    this.window?.webContents.send('config-changed')
   }
 
   private updateTrayIcon(incidents: Incident[], newIncidents: Incident[] = []) {
