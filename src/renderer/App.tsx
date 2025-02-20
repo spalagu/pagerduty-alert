@@ -122,6 +122,20 @@ export const App: React.FC = () => {
         }
     }, [loadIncidents])
 
+    // 监听告警更新事件
+    useEffect(() => {
+        const handleIncidentsUpdated = (_event: Electron.IpcRendererEvent, incidents: Incident[]) => {
+            console.log('收到告警更新:', incidents)
+            setIncidents(sortIncidents(incidents))
+        }
+
+        window.electron.ipcRenderer.on('incidents-updated', handleIncidentsUpdated)
+        
+        return () => {
+            window.electron.ipcRenderer.removeListener('incidents-updated', handleIncidentsUpdated)
+        }
+    }, [sortIncidents])
+
     // 监听 incidents 变化更新图标
     useEffect(() => {
         if (!isLoading && incidents.length >= 0) {
