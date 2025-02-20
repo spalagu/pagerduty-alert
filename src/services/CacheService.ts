@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import type { Incident, CachedIncident, PagerDutyConfig } from '../types'
 import { DEFAULT_CACHE_CONFIG } from '../config/defaults'
+import { logService } from './LogService'
 
 export class CacheService {
   private store!: Store
@@ -8,7 +9,7 @@ export class CacheService {
   private config: PagerDutyConfig['cache'] = DEFAULT_CACHE_CONFIG
 
   constructor() {
-    console.log('CacheService 初始化开始')
+    logService.info('CacheService 初始化开始')
     try {
       this.store = new Store({
         name: 'cache',
@@ -21,12 +22,12 @@ export class CacheService {
       this.loadConfig()
       this.loadCache()
       
-      console.log('CacheService 初始化成功:', {
+      logService.info('CacheService 初始化成功', {
         config: this.config,
         incidentsCount: this.store.get('incidents')?.length || 0
       })
     } catch (error) {
-      console.error('CacheService 初始化失败:', error)
+      logService.error('CacheService 初始化失败', error)
     }
   }
 
@@ -99,7 +100,7 @@ export class CacheService {
       })
       this.cleanExpiredCache()
     } catch (error) {
-      console.error('加载缓存失败:', error)
+      logService.error('加载缓存失败', error)
       this.cache.clear()
     }
   }
@@ -108,7 +109,7 @@ export class CacheService {
     try {
       this.store.set('incidentCache', Array.from(this.cache.values()))
     } catch (error) {
-      console.error('保存缓存失败:', error)
+      logService.error('保存缓存失败', error)
     }
   }
 }

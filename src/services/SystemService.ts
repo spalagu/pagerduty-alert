@@ -2,13 +2,14 @@ import { app, session } from 'electron'
 import Store from 'electron-store'
 import type { PagerDutyConfig } from '../types'
 import { DEFAULT_SYSTEM_CONFIG } from '../config/defaults'
+import { logService } from './LogService'
 
 export class SystemService {
   private store!: Store
   private config: PagerDutyConfig['system'] = DEFAULT_SYSTEM_CONFIG
 
   constructor() {
-    console.log('SystemService 初始化开始')
+    logService.info('SystemService 初始化开始')
     try {
       this.store = new Store({
         name: 'system',
@@ -18,11 +19,11 @@ export class SystemService {
       })
 
       this.loadConfig()
-      console.log('SystemService 初始化成功:', {
+      logService.info('SystemService 初始化成功', {
         config: this.config
       })
     } catch (error) {
-      console.error('SystemService 初始化失败:', error)
+      logService.error('SystemService 初始化失败', error)
     }
 
     if (app.isReady()) {
@@ -71,7 +72,7 @@ export class SystemService {
         })
       }
     } catch (error) {
-      console.error('设置代理失败:', error)
+      logService.error('设置代理失败', error)
     }
   }
 
@@ -84,7 +85,7 @@ export class SystemService {
       })
       return response.ok
     } catch (error) {
-      console.error('代理连接测试失败:', error)
+      logService.error('代理连接测试失败', error)
       return false
     }
   }

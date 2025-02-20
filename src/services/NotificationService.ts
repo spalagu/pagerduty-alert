@@ -1,4 +1,5 @@
 import { NotificationWindow } from '../main/windows/NotificationWindow'
+import { logService } from './LogService'
 
 interface NotificationOptions {
   title: string
@@ -38,34 +39,34 @@ class NotificationService {
   private isSoundEnabled: boolean = true
 
   constructor() {
-    console.log('NotificationService 初始化')
+    logService.info('NotificationService 初始化')
     this.notificationWindow = NotificationWindow.getInstance()
   }
 
   public setEnabled(enabled: boolean) {
-    console.log('NotificationService.setEnabled:', enabled)
+    logService.info('NotificationService.setEnabled', { enabled })
     this.isEnabled = enabled
   }
 
   public setSoundEnabled(enabled: boolean) {
-    console.log('NotificationService.setSoundEnabled:', enabled)
+    logService.info('NotificationService.setSoundEnabled', { enabled })
     this.isSoundEnabled = enabled
   }
 
   public showNotification(options: NotificationOptions) {
-    console.log('NotificationService.showNotification:', {
+    logService.info('NotificationService.showNotification', {
       options,
       isEnabled: this.isEnabled,
       isSoundEnabled: this.isSoundEnabled
     })
     
     if (!this.isEnabled) {
-      console.log('通知服务已禁用')
+      logService.info('通知服务已禁用')
       return
     }
 
     const { title, body, urgency = 'low', onClick, onClose } = options
-    console.log('显示通知:', { title, body, urgency })
+    logService.info('显示通知', { title, body, urgency })
 
     // 显示通知窗口
     this.notificationWindow.show({

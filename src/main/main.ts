@@ -35,7 +35,7 @@ export class PagerDutyMenuBar {
   private hasShownApiKeyWarning = false
 
   constructor() {
-    console.log('PagerDutyMenuBar 构造函数开始...')
+    logService.info('PagerDutyMenuBar 构造函数开始', { phase: 'initialization' })
     try {
       // 创建 store 实例时提供默认配置
       this.store = new Store({
@@ -53,9 +53,12 @@ export class PagerDutyMenuBar {
       this.lastCheckedTime = this.appStartTime
       this.lastIncidentIds = new Set()
       
-      console.log('PagerDutyMenuBar 初始化成功')
+      logService.info('PagerDutyMenuBar 初始化成功', { 
+        appStartTime: this.appStartTime,
+        lastCheckedTime: this.lastCheckedTime
+      })
     } catch (error) {
-      console.error('PagerDutyMenuBar 初始化失败:', error)
+      logService.error('PagerDutyMenuBar 初始化失败', error)
       // 如果初始化失败，使用新的空 Store
       this.store = new Store({
         name: 'pagerduty',
@@ -67,17 +70,17 @@ export class PagerDutyMenuBar {
     
     // 修改 before-quit 事件监听
     app.on('before-quit', async (event) => {
-      console.log('触发 before-quit 事件')
+      logService.info('触发 before-quit 事件', { isQuitting: this.isQuitting })
       if (!this.isQuitting) {
-        console.log('开始执行退出前清理...')
+        logService.info('开始执行退出前清理', { phase: 'cleanup' })
         event.preventDefault()
         this.isQuitting = true
         try {
           await this.cleanup()
-          console.log('清理完成，准备退出应用')
+          logService.info('清理完成，准备退出应用', { exitCode: 0 })
           process.nextTick(() => app.exit(0))
         } catch (error) {
-          console.error('清理过程出错:', error)
+          logService.error('清理过程出错', error)
           process.nextTick(() => app.exit(1))
         }
       }
@@ -85,31 +88,34 @@ export class PagerDutyMenuBar {
     
     // 修改 window-all-closed 事件处理
     app.on('window-all-closed', () => {
-      console.log('所有窗口已关闭')
+      logService.info('所有窗口已关闭', { isQuitting: this.isQuitting })
       if (this.isQuitting) {
-        console.log('正在退出过程中，忽略 window-all-closed 事件')
+        logService.info('正在退出过程中，忽略 window-all-closed 事件', { phase: 'quitting' })
         return
       }
       if (process.platform !== 'darwin') {
-        console.log('非 macOS 平台，触发应用退出')
+        logService.info('非 macOS 平台，触发应用退出', { platform: process.platform })
         app.quit()
       } else {
-        console.log('macOS 平台，保持应用运行')
+        logService.info('macOS 平台，保持应用运行', { platform: process.platform })
       }
     })
     
     this.init().catch(err => {
-      console.error('初始化失败:', err)
+      logService.error('初始化失败', err)
       app.exit(1)
     })
   }
 
   private validateAndRepairConfig() {
-    console.log('验证并修复主配置...')
+    logService.info('验证并修复主配置', { phase: 'config-validation' })
     try {
       const config = this.store.get('config') as PagerDutyConfig
       if (!config || typeof config !== 'object') {
-        console.log('主配置无效，使用默认配置')
+        logService.info('主配置无效，使用默认配置', { 
+          hasConfig: !!config,
+          configType: typeof config
+        })
         this.store.set('config', this.store.get('defaults.config'))
         return
       }
@@ -119,28 +125,40 @@ export class PagerDutyMenuBar {
 
       // 验证 notification 配置
       if (!config.notification || typeof config.notification !== 'object') {
-        console.log('notification 配置无效，使用默认值')
+        logService.info('notification 配置无效，使用默认值', {
+          hasNotification: !!config.notification,
+          notificationType: typeof config.notification
+        })
         config.notification = this.store.get('defaults.config.notification')
         needsRepair = true
       }
 
       // 验证 appearance 配置
       if (!config.appearance || typeof config.appearance !== 'object') {
-        console.log('appearance 配置无效，使用默认值')
+        logService.info('appearance 配置无效，使用默认值', {
+          hasAppearance: !!config.appearance,
+          appearanceType: typeof config.appearance
+        })
         config.appearance = this.store.get('defaults.config.appearance')
         needsRepair = true
       }
 
       // 验证 system 配置
       if (!config.system || typeof config.system !== 'object') {
-        console.log('system 配置无效，使用默认值')
+        logService.info('system 配置无效，使用默认值', {
+          hasSystem: !!config.system,
+          systemType: typeof config.system
+        })
         config.system = this.store.get('defaults.config.system')
         needsRepair = true
       }
 
       // 验证 cache 配置
       if (!config.cache || typeof config.cache !== 'object') {
-        console.log('cache 配置无效，使用默认值')
+        logService.info('cache 配置无效，使用默认值', {
+          hasCache: !!config.cache,
+          cacheType: typeof config.cache
+        })
         config.cache = this.store.get('defaults.config.cache')
         needsRepair = true
       }
@@ -149,7 +167,7 @@ export class PagerDutyMenuBar {
         this.store.set('config', config)
       }
     } catch (error) {
-      console.error('配置验证/修复失败:', error)
+      logService.error('配置验证/修复失败', error)
       // 重置为默认值
       this.store.clear()
       this.store.set('config', this.store.get('defaults.config'))
@@ -158,52 +176,52 @@ export class PagerDutyMenuBar {
 
   private async init() {
     try {
-      console.log('等待应用就绪...')
+      logService.info('等待应用就绪', { phase: 'app-ready' })
       await app.whenReady()
-      console.log('应用初始化开始...')
+      logService.info('应用初始化开始', { phase: 'initialization' })
 
       // 获取配置
       const config = this.store.get('config') as PagerDutyConfig
-      console.log('当前配置:', config)
+      logService.info('当前配置', config)
 
       // 初始化日志服务
       logService.setConfig(config.log)
       logService.info('日志服务初始化完成', { config: config.log })
-
+      
       // 设置主题
       const theme = config.appearance?.theme || 'light'
       logService.info('设置主题', { theme })
       themeService.setTheme(theme)
 
       // 先设置 IPC 通信
-      console.log('设置 IPC 通信...')
+      logService.info('设置 IPC 通信', { phase: 'ipc-setup' })
       this.setupIPC()
 
       // 初始化窗口管理器
-      console.log('初始化窗口管理器...')
+      logService.info('初始化窗口管理器', { phase: 'window-init' })
       this.settingsWindow = new SettingsWindow()
       this.notificationWindow = NotificationWindow.getInstance()
 
       // 创建托盘
-      console.log('开始创建托盘...')
+      logService.info('开始创建托盘', { phase: 'tray-init' })
       await this.createTray()
-      console.log('托盘创建完成')
+      logService.info('托盘创建完成', { phase: 'tray-ready' })
 
       // 等待一小段时间确保 IPC 已完全注册
       await new Promise(resolve => setTimeout(resolve, 100))
       
       // 创建并加载窗口
-      console.log('开始创建窗口...')
+      logService.info('开始创建窗口', { phase: 'window-creation' })
       await this.createWindow(config.appearance || { theme: 'light', windowSize: { width: 400, height: 600 } })
       if (!this.window) {
         throw new Error('Failed to create window')
       }
 
       // 等待页面加载完成
-      console.log('等待页面加载...')
+      logService.info('等待页面加载', { phase: 'page-loading' })
       await new Promise<void>((resolve) => {
         const onLoad = () => {
-          console.log('页面加载完成')
+          logService.info('页面加载完成', { phase: 'page-loaded' })
           this.window?.webContents.removeListener('did-finish-load', onLoad)
           resolve()
         }
@@ -211,25 +229,25 @@ export class PagerDutyMenuBar {
       })
 
       // 通知渲染进程 IPC 已就绪
-      console.log('通知渲染进程 IPC 已就绪')
+      logService.info('通知渲染进程 IPC 已就绪', { phase: 'ipc-ready' })
       this.window?.webContents.send('ipc-ready')
 
       // 验证 API 密钥
       await this.validateApiKey()
 
       // 启动轮询
-      console.log('启动轮询...')
+      logService.info('启动轮询', { phase: 'polling-start' })
       await this.startPolling()
 
-      console.log('应用初始化完成')
+      logService.info('应用初始化完成', { phase: 'initialization-complete' })
     } catch (error) {
-      console.error('初始化过程出错:', error)
+      logService.error('初始化过程出错', error)
       throw error
     }
   }
 
   private resetIncidentState() {
-    console.log('重置告警状态...')
+    logService.info('重置告警状态')
     this.lastIncidentIds = new Set()
     this.lastValidIncidents = []
     this.lastCheckedTime = new Date().toISOString()
@@ -244,7 +262,7 @@ export class PagerDutyMenuBar {
 
     const config = this.store.get('config') as PagerDutyConfig
     if (!config.apiKey) {
-      console.log('未配置 API 密钥')
+      logService.info('未配置 API 密钥')
       notificationService.showNotification({
         title: 'PagerDuty Alert',
         body: '请先配置 PagerDuty API 密钥',
@@ -266,7 +284,7 @@ export class PagerDutyMenuBar {
       })
 
       if (!response.ok) {
-        console.log('API 密钥无效')
+        logService.info('API 密钥无效')
         notificationService.showNotification({
           title: 'PagerDuty Alert',
           body: 'API 密钥无效，请检查配置',
@@ -278,7 +296,7 @@ export class PagerDutyMenuBar {
         this.hasShownApiKeyWarning = true
       }
     } catch (error) {
-      console.error('验证 API 密钥失败:', error)
+      logService.error('验证 API 密钥失败', error)
       notificationService.showNotification({
         title: 'PagerDuty Alert',
         body: '无法验证 API 密钥，请检查网络连接',
@@ -294,7 +312,7 @@ export class PagerDutyMenuBar {
   private applyTheme(appearance: PagerDutyConfig['appearance']) {
     if (!this.window) return
 
-    console.log('应用主题设置:', appearance)
+    logService.info('应用主题设置', appearance)
 
     // 设置主题
     if (appearance.theme === 'system') {
@@ -312,14 +330,14 @@ export class PagerDutyMenuBar {
       const { width, height } = appearance.windowSize
       const [currentWidth, currentHeight] = this.window.getSize()
       if (width !== currentWidth || height !== currentHeight) {
-        console.log('更新窗口大小:', width, height)
+        logService.info('更新窗口大小', { width, height })
         this.window.setSize(width, height)
       }
     }
   }
 
   private async cleanup() {
-    logService.info('开始清理资源...')
+    logService.info('开始清理资源')
     pollingManager.cleanup()
     
     // 设置退出标志
@@ -329,7 +347,7 @@ export class PagerDutyMenuBar {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer)
       this.pollingTimer = null
-      console.log('已清理轮询定时器')
+      logService.info('已清理轮询定时器')
     }
 
     // 清理缓存
@@ -342,9 +360,9 @@ export class PagerDutyMenuBar {
         await this.window.webContents.session.clearCache()
         this.window.destroy()
         this.window = null
-        console.log('已销毁主窗口')
+        logService.info('已销毁主窗口')
       } catch (error) {
-        console.error('销毁主窗口时出错:', error)
+        logService.error('销毁主窗口时出错', error)
       }
     }
 
@@ -353,9 +371,9 @@ export class PagerDutyMenuBar {
       try {
         await this.settingsWindow.cleanup()
         this.settingsWindow = null
-        console.log('已销毁设置窗口')
+        logService.info('已销毁设置窗口')
       } catch (error) {
-        console.error('销毁设置窗口时出错:', error)
+        logService.error('销毁设置窗口时出错', error)
       }
     }
 
@@ -363,9 +381,9 @@ export class PagerDutyMenuBar {
     if (this.notificationWindow) {
       try {
         this.notificationWindow = null
-        console.log('已销毁通知窗口')
+        logService.info('已销毁通知窗口')
       } catch (error) {
-        console.error('销毁通知窗口时出错:', error)
+        logService.error('销毁通知窗口时出错', error)
       }
     }
 
@@ -375,19 +393,19 @@ export class PagerDutyMenuBar {
         this.tray.removeAllListeners()
         this.tray.destroy()
         this.tray = null
-        console.log('已销毁托盘图标')
+        logService.info('已销毁托盘图标')
       } catch (error) {
-        console.error('销毁托盘图标时出错:', error)
+        logService.error('销毁托盘图标时出错', error)
       }
     }
 
     // 等待一小段时间确保资源释放
     await new Promise(resolve => setTimeout(resolve, 200))
-    console.log('资源清理完成')
+    logService.info('资源清理完成')
   }
 
   private getIconPath(iconName: string): string {
-    console.log('开始查找图标文件:', iconName)
+    logService.info('开始查找图标文件')
     // 尝试不同的路径
     const possiblePaths = [
       // 开发环境路径
@@ -398,67 +416,57 @@ export class PagerDutyMenuBar {
       path.join(__dirname, 'assets', iconName)
     ]
 
-    console.log('尝试以下路径:')
+    logService.info('尝试以下路径')
     for (const iconPath of possiblePaths) {
-      console.log('- 检查路径:', iconPath)
       if (require('fs').existsSync(iconPath)) {
-        console.log('找到图标文件:', iconPath)
+        logService.info('找到图标文件', { path: iconPath })
         return iconPath
       }
     }
 
-    console.error('所有路径都未找到图标文件')
+    logService.error('所有路径都未找到图标文件', { iconName })
     throw new Error(`找不到图标文件: ${iconName}`)
   }
 
   private createTray() {
     try {
-      console.log('创建托盘图标...')
+      logService.info('创建托盘图标')
       
       const iconPath = this.getIconPath('tray-icon.png')
-      console.log('使用图标路径:', iconPath)
-
+      
       // 检查图标文件是否存在
       const fs = require('fs')
       if (!fs.existsSync(iconPath)) {
-        console.error('图标文件不存在:', iconPath)
+        logService.error('图标文件不存在', { path: iconPath })
         throw new Error('图标文件不存在')
       }
 
-      // 获取图标文件大小
-      const stats = fs.statSync(iconPath)
-      console.log('图标文件大小:', stats.size, 'bytes')
-
       // 直接从路径创建图标
-      console.log('开始创建 nativeImage...')
+      logService.info('开始创建 nativeImage')
       const icon = nativeImage.createFromPath(iconPath)
       
-      // 检查图标尺寸
-      const size = icon.getSize()
-      console.log('图标尺寸:', size)
-
       if (icon.isEmpty()) {
-        console.error('图标加载失败: 图标为空')
+        logService.error('图标加载失败: 图标为空')
         throw new Error('图标加载失败')
       }
       
-      console.log('图标创建成功')
+      logService.info('图标创建成功')
       // 不设置为 template image
       icon.setTemplateImage(false)
       
-      console.log('开始创建 Tray 实例...')
+      logService.info('开始创建 Tray 实例')
       this.tray = new Tray(icon)
       
-      console.log('设置工具提示...')
+      logService.info('设置工具提示')
       this.tray.setToolTip('PagerDuty')
       
-      console.log('设置托盘事件...')
+      logService.info('设置托盘事件')
       this.setupTrayEvents()
       
-      console.log('托盘创建成功')
+      logService.info('托盘创建成功')
     } catch (error) {
-      console.error('创建托盘图标失败:', error)
-      throw error // 重新抛出错误，让上层知道创建失败
+      logService.error('创建托盘图标失败', error)
+      throw error
     }
   }
 
@@ -481,16 +489,16 @@ export class PagerDutyMenuBar {
       {
         label: '退出',
         click: async () => {
-          console.log('用户点击退出按钮')
+          logService.info('用户点击退出按钮')
           try {
             await this.cleanup()
-            console.log('清理完成，强制退出应用')
+            logService.info('清理完成，强制退出应用')
             if (this.window) {
               this.window.destroy()
             }
             app.exit(0)
           } catch (error) {
-            console.error('退出清理过程出错:', error)
+            logService.error('退出清理过程出错', error)
             app.exit(1)
           }
         }
@@ -541,12 +549,9 @@ export class PagerDutyMenuBar {
   }
 
   private createWindow(appearance: PagerDutyConfig['appearance']) {
-    console.log('创建主窗口...')
+    logService.info('创建主窗口')
     try {
       const isDark = nativeTheme.shouldUseDarkColors
-      console.log('当前主题:', isDark ? 'dark' : 'light')
-
-      // 创建窗口时就设置正确的背景色
       const backgroundColor = isDark ? '#1a1a1a' : '#ffffff'
       
       this.window = new BrowserWindow({
@@ -581,7 +586,7 @@ export class PagerDutyMenuBar {
         ? path.join(process.cwd(), 'dist', 'index.html')
         : path.join(__dirname, 'index.html')
       
-      console.log('加载页面:', htmlPath)
+      logService.info('加载页面', { path: htmlPath })
       this.window.loadFile(htmlPath)
 
       // 开发环境打开开发者工具
@@ -591,24 +596,24 @@ export class PagerDutyMenuBar {
 
       // 监听加载完成事件
       this.window.webContents.on('did-finish-load', () => {
-        console.log('页面加载完成')
+        logService.info('页面加载完成')
         // 通知渲染进程当前主题
         this.window?.webContents.send('theme-changed', isDark)
       })
 
       // 监听加载失败事件
       this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-        console.error('页面加载失败:', errorCode, errorDescription)
+        logService.error('页面加载失败', { errorCode, errorDescription })
       })
 
       // 监听窗口关闭事件
       this.window.on('close', (event) => {
-        console.log('窗口关闭事件触发, isQuitting:', this.isQuitting)
+        logService.info('窗口关闭事件触发')
         if (!this.isQuitting) {
           event.preventDefault()
           this.window?.hide()
         } else {
-          console.log('正在退出，允许窗口关闭')
+          logService.info('正在退出，允许窗口关闭')
         }
       })
 
@@ -624,14 +629,14 @@ export class PagerDutyMenuBar {
         }
       })
 
-      console.log('主窗口创建成功')
+      logService.info('主窗口创建成功')
     } catch (error) {
-      console.error('创建主窗口失败:', error)
+      logService.error('创建主窗口失败', error)
     }
   }
 
   private setupIPC() {
-    console.log('开始注册 IPC 处理器...')
+    logService.info('开始注册 IPC 处理器', { phase: 'ipc-setup' })
     
     // 移除所有现有的 IPC 处理器
     ipcMain.removeHandler('get-config')
@@ -651,12 +656,12 @@ export class PagerDutyMenuBar {
 
     // 重新注册所有 IPC 处理器
     ipcMain.handle('get-config', () => {
-      console.log('处理 get-config 请求')
+      logService.info('处理 get-config 请求', { handler: 'get-config' })
       return this.store.get('config')
     })
 
     ipcMain.handle('save-config', async (event, config: PagerDutyConfig) => {
-      console.log('保存配置，当前配置详情:', {
+      logService.info('保存配置，当前配置详情', {
         apiKey: config.apiKey ? '已设置' : '未设置',
         pollingInterval: config.pollingInterval,
         urgencyFilter: config.urgencyFilter,
@@ -699,7 +704,7 @@ export class PagerDutyMenuBar {
 
       // 如果 API 密钥已更改，验证新密钥
       if (apiKeyChanged && config.apiKey) {
-        console.log('API 密钥已更改，开始验证')
+        logService.info('API 密钥已更改，开始验证')
         try {
           const response = await fetch('https://api.pagerduty.com/users/me', {
             headers: {
@@ -709,7 +714,7 @@ export class PagerDutyMenuBar {
           })
 
           if (!response.ok) {
-            console.log('新 API 密钥无效')
+            logService.info('新 API 密钥无效')
             notificationService.showNotification({
               title: 'PagerDuty Alert',
               body: 'API 密钥无效，请检查配置',
@@ -718,9 +723,10 @@ export class PagerDutyMenuBar {
             return { success: false, error: 'Invalid API key' }
           }
           
-          console.log('API 密钥验证成功')
+          logService.info('API 密钥验证成功')
+          
         } catch (error) {
-          console.error('API 密钥验证失败:', error)
+          logService.error('API 密钥验证过程出错', error)
           notificationService.showNotification({
             title: 'PagerDuty Alert',
             body: '无法验证 API 密钥，请检查网络连接',
@@ -826,7 +832,7 @@ export class PagerDutyMenuBar {
 
         if (!response.ok) {
           const errorData = await response.json();
-          console.error('确认告警失败:', errorData);
+          logService.error('确认告警失败', errorData);
           throw new Error(`Failed to acknowledge incident: ${errorData.message || response.statusText}`);
         }
 
@@ -840,11 +846,11 @@ export class PagerDutyMenuBar {
     })
 
     ipcMain.handle('get-incident-details', async (event, incidentId) => {
-        console.log('收到获取告警详情请求:', incidentId)
+        logService.info('收到获取告警详情请求', { incidentId })
         const config = this.store.get('config') as PagerDutyConfig
         try {
             // 获取告警基本信息
-            console.log('开始获取告警基本信息...')
+            logService.info('开始获取告警基本信息')
             const incidentUrl = `https://api.pagerduty.com/incidents/${incidentId}`
             const incidentOptions = {
                 method: 'GET',
@@ -856,19 +862,19 @@ export class PagerDutyMenuBar {
             }
 
             const incidentResponse = await fetch(incidentUrl, incidentOptions)
-            console.log('告警基本信息响应状态:', incidentResponse.status)
+            logService.info('告警基本信息响应状态', { status: incidentResponse.status })
 
             if (!incidentResponse.ok) {
                 const errorData = await incidentResponse.json()
-                console.error('获取告警详情失败:', errorData)
+                logService.error('获取告警详情失败', errorData)
                 throw new Error(`Failed to fetch incident details: ${errorData.message || incidentResponse.statusText}`)
             }
 
             const incidentData = await incidentResponse.json()
-            console.log('获取到告警基本信息')
+            logService.info('获取到告警基本信息')
 
             // 获取告警的最新告警信息
-            console.log('开始获取最新告警信息...')
+            logService.info('开始获取最新告警信息')
             const alertsUrl = `https://api.pagerduty.com/incidents/${incidentId}/alerts?limit=1&total=true&statuses[]=triggered&statuses[]=acknowledged`
             const alertsOptions = {
                 method: 'GET',
@@ -880,16 +886,16 @@ export class PagerDutyMenuBar {
             }
 
             const alertsResponse = await fetch(alertsUrl, alertsOptions)
-            console.log('告警信息响应状态:', alertsResponse.status)
+            logService.info('告警信息响应状态', { status: alertsResponse.status })
 
             if (!alertsResponse.ok) {
                 const errorData = await alertsResponse.json()
-                console.error('获取告警信息失败:', errorData)
+                logService.error('获取告警信息失败', errorData)
                 throw new Error(`Failed to fetch alert details: ${errorData.message || alertsResponse.statusText}`)
             }
 
             const alertsData = await alertsResponse.json()
-            console.log('获取到最新告警信息')
+            logService.info('获取到最新告警信息')
 
             // 合并告警详情和自定义字段
             const result = {
@@ -899,7 +905,7 @@ export class PagerDutyMenuBar {
                 firstAlertDetails: alertsData.alerts?.[0]?.body?.details || {}
             }
 
-            console.log('告警详情数据处理完成:', {
+            logService.info('告警详情数据处理完成', {
                 incidentId,
                 status: result.incident.status,
                 hasCustomDetails: Object.keys(result.customDetails).length > 0,
@@ -908,7 +914,7 @@ export class PagerDutyMenuBar {
 
             return result
         } catch (error: unknown) {
-            console.error('处理告警详情请求时出错:', error)
+            logService.error('处理告警详情请求时出错', error)
             if (error instanceof Error) {
                 return { success: false, error: error.message }
             }
@@ -920,7 +926,7 @@ export class PagerDutyMenuBar {
       try {
         return await this.fetchIncidents()
       } catch (error) {
-        console.error('获取告警失败:', error)
+        logService.error('获取告警失败', error)
         return []
       }
     })
@@ -929,7 +935,7 @@ export class PagerDutyMenuBar {
       try {
         this.updateTrayIcon(incidents)
       } catch (error) {
-        console.error('更新托盘图标失败:', error)
+        logService.error('更新托盘图标失败', error)
       }
     })
 
@@ -948,16 +954,16 @@ export class PagerDutyMenuBar {
 
     // 添加日志查看处理器
     ipcMain.handle('show-log-viewer', () => {
-      console.log('显示日志查看器')
+      logService.info('显示日志查看器')
       LogViewerWindow.getInstance().show()
     })
 
     ipcMain.handle('get-logs', async (event, days: number = 1) => {
-      console.log('获取日志内容, 天数:', days)
+      logService.info('获取日志内容', { days })
       try {
         return logService.getLogContent(days)
       } catch (error) {
-        console.error('获取日志失败:', error)
+        logService.error('获取日志失败', error)
         return '获取日志失败'
       }
     })
@@ -1037,40 +1043,40 @@ export class PagerDutyMenuBar {
   }
 
   private showPendingNotifications(config: PagerDutyConfig) {
-    console.log('showPendingNotifications 被调用:', {
+    logService.info('showPendingNotifications 被调用', {
       notificationEnabled: config.notification?.enabled,
       pendingNotifications: this.pendingNotifications,
       hasActiveNotification: this.hasActiveNotification
     })
 
     if (!config.notification?.enabled) {
-      console.log('通知功能已禁用')
+      logService.info('通知功能已禁用')
       return
     }
 
     this.hasActiveNotification = true
 
     const showNotification = () => {
-      console.log('准备显示通知:', {
+      logService.info('准备显示通知', {
         highCount: this.pendingNotifications.high,
         lowCount: this.pendingNotifications.low
       })
 
       if (this.pendingNotifications.high > 0) {
-        console.log('显示高优先级通知')
+        logService.info('显示高优先级通知')
         notificationService.showNotification({
           title: '新告警通知',
           body: `${this.pendingNotifications.high} 个高优先级告警`,
           urgency: 'high',
           onClick: () => {
-            console.log('通知被点击，显示主窗口')
+            logService.info('通知被点击，显示主窗口')
             this.window?.show()
           },
           onClose: () => {
-            console.log('高优先级通知被关闭')
+            logService.info('高优先级通知被关闭')
             this.pendingNotifications.high = 0
             if (this.pendingNotifications.low > 0) {
-              console.log('显示低优先级通知')
+              logService.info('显示低优先级通知')
               notificationService.showNotification({
                 title: '新告警通知',
                 body: `${this.pendingNotifications.low} 个低优先级告警`,
@@ -1079,19 +1085,19 @@ export class PagerDutyMenuBar {
                   this.window?.show()
                 },
                 onClose: () => {
-                  console.log('低优先级通知被关闭')
+                  logService.info('低优先级通知被关闭')
                   this.pendingNotifications.low = 0
                   this.hasActiveNotification = false
                 }
               })
             } else {
-              console.log('没有更多通知，重置状态')
+              logService.info('没有更多通知，重置状态')
               this.hasActiveNotification = false
             }
           }
         })
       } else if (this.pendingNotifications.low > 0) {
-        console.log('显示低优先级通知')
+        logService.info('显示低优先级通知')
         notificationService.showNotification({
           title: '新告警通知',
           body: `${this.pendingNotifications.low} 个低优先级告警`,
@@ -1100,13 +1106,13 @@ export class PagerDutyMenuBar {
             this.window?.show()
           },
           onClose: () => {
-            console.log('低优先级通知被关闭')
+            logService.info('低优先级通知被关闭')
             this.pendingNotifications.low = 0
             this.hasActiveNotification = false
           }
         })
       } else {
-        console.log('没有待显示的通知')
+        logService.info('没有待显示的通知')
         this.hasActiveNotification = false
       }
     }
@@ -1116,7 +1122,9 @@ export class PagerDutyMenuBar {
 
   private async startPolling() {
     if (this.isPollingInitialized) {
-      logService.info('[startPolling] 轮询已初始化，忽略重复调用')
+      logService.info('[startPolling] 轮询已初始化，忽略重复调用', { 
+        isPollingInitialized: this.isPollingInitialized 
+      })
       return
     }
 
@@ -1125,7 +1133,9 @@ export class PagerDutyMenuBar {
     
     // 确保在开发环境下不会重复初始化
     if (process.env.NODE_ENV === 'development') {
-      logService.info('[startPolling] 开发环境下重置 PollingManager')
+      logService.info('[startPolling] 开发环境下重置 PollingManager', { 
+        environment: process.env.NODE_ENV 
+      })
       pollingManager.cleanup()
     }
     
@@ -1136,7 +1146,7 @@ export class PagerDutyMenuBar {
         this.updateTrayIcon(incidents)
         this.window?.webContents.send('incidents-updated', incidents)
       } catch (error) {
-        logService.error('[startPolling] 轮询回调执行失败:', error)
+        logService.error('[startPolling] 轮询回调执行失败', error)
       }
     })
 
@@ -1171,15 +1181,15 @@ export class PagerDutyMenuBar {
   }
 
   private updateTrayIcon(incidents: Incident[], newIncidents: Incident[] = []) {
-    console.log('========== 图标状态更新开始 ==========')
+    logService.info('========== 图标状态更新开始 ==========')
     const config = this.store.get('config') as PagerDutyConfig
-    console.log('配置信息:', {
+    logService.info('配置信息', {
       statusFilter: config.statusFilter,
       urgencyFilter: config.urgencyFilter,
       showOnlyNewAlerts: config.showOnlyNewAlerts
     })
 
-    console.log('告警数据:', incidents.map(inc => ({
+    logService.info('告警数据', incidents.map(inc => ({
       id: inc.id,
       status: inc.status,
       title: inc.title,
@@ -1191,7 +1201,7 @@ export class PagerDutyMenuBar {
       config.urgencyFilter.includes(inc.urgency)
     )
 
-    console.log('状态过滤后的告警:', filteredIncidents.map(inc => ({
+    logService.info('状态过滤后的告警', filteredIncidents.map(inc => ({
       id: inc.id,
       status: inc.status,
       title: inc.title,
@@ -1207,7 +1217,7 @@ export class PagerDutyMenuBar {
     const hasTriggeredIncidents = statusCounts.triggered > 0
     const hasAcknowledgedIncidents = statusCounts.acknowledged > 0
 
-    console.log('图标状态判断:', {
+    logService.info('图标状态判断', {
       hasTriggeredIncidents,
       hasAcknowledgedIncidents,
       filteredIncidentsCount: filteredIncidents.length,
@@ -1227,19 +1237,19 @@ export class PagerDutyMenuBar {
       reason = '所有告警已确认'
     }
 
-    console.log('图标选择结果:', { iconName, reason })
+    logService.info('图标选择结果', { iconName, reason })
 
     const iconPath = this.getIconPath(iconName)
     if (iconPath) {
       this.tray?.setImage(iconPath)
-      console.log('图标路径:', iconPath)
+      logService.info('图标路径', { iconPath })
     }
 
     if (this.tray) {
       this.tray.setToolTip(`PagerDuty Alert\n${filteredIncidents.length} 个告警`)
     }
 
-    console.log('图标更新完成')
-    console.log('========== 图标状态更新结束 ==========')
+    logService.info('图标更新完成')
+    logService.info('========== 图标状态更新结束 ==========')
   }
 }

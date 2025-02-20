@@ -62,9 +62,8 @@ class LogService {
 
   private formatMessage(level: LogLevel, message: string, data?: any): string {
     const timestamp = new Date().toISOString()
-    return `${timestamp} [${level.toUpperCase()}] ${message}${
-      data ? ` ${JSON.stringify(data, null, 2)}` : ''
-    }\n`
+    const logMessage = data ? `${message} ${JSON.stringify(data, null, 2)}` : message
+    return `${timestamp} [${level.toUpperCase()}] ${logMessage}\n`
   }
 
   private log(level: LogLevel, message: string, data?: any) {
@@ -76,7 +75,12 @@ class LogService {
         'warn': console.warn,
         'error': console.error
       }[level]
-      consoleMethod(`[Early] ${message}`, data)
+      
+      if (data) {
+        consoleMethod(`[Early] ${message}`, data)
+      } else {
+        consoleMethod(`[Early] ${message}`)
+      }
       return
     }
 
@@ -94,7 +98,12 @@ class LogService {
         'warn': console.warn,
         'error': console.error
       }[level]
-      consoleMethod(message, data)
+      
+      if (data) {
+        consoleMethod(message, data)
+      } else {
+        consoleMethod(message)
+      }
     }
 
     // 根据配置写入文件

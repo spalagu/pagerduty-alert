@@ -2,6 +2,7 @@ import { BrowserWindow, nativeTheme, app, ipcMain } from 'electron'
 import * as path from 'path'
 import type { PagerDutyConfig } from '../../types'
 import { notificationService } from '../../services/NotificationService'
+import { logService } from '../../services/LogService'
 
 export class SettingsWindow {
   private window: BrowserWindow | null = null
@@ -14,7 +15,7 @@ export class SettingsWindow {
   private setupIPC() {
     // 添加配置保存的处理
     ipcMain.handle('settings-save-config', async (event, newConfig: PagerDutyConfig, oldConfig: PagerDutyConfig) => {
-      console.log('处理配置保存请求:', {
+      logService.info('处理配置保存请求', {
         hasNewApiKey: !!newConfig.apiKey,
         hasOldApiKey: !!oldConfig.apiKey,
         apiKeyChanged: newConfig.apiKey !== oldConfig.apiKey
@@ -22,12 +23,12 @@ export class SettingsWindow {
 
       // 检查 API 密钥是否发生变化
       if (newConfig.apiKey !== oldConfig.apiKey && newConfig.apiKey !== this.lastValidatedApiKey) {
-        console.log('API 密钥已更改，开始验证')
+        logService.info('API 密钥已更改，开始验证')
         
         try {
           const isValid = await this.validateApiKey(newConfig.apiKey)
           if (!isValid) {
-            console.log('API 密钥验证失败')
+            logService.info('API 密钥验证失败')
             notificationService.showNotification({
               title: 'PagerDuty Alert',
               body: 'API 密钥无效，请检查配置',
@@ -38,10 +39,10 @@ export class SettingsWindow {
           
           // 更新最后验证的密钥
           this.lastValidatedApiKey = newConfig.apiKey
-          console.log('API 密钥验证成功')
+          logService.info('API 密钥验证成功')
           
         } catch (error) {
-          console.error('API 密钥验证过程出错:', error)
+          logService.error('API 密钥验证过程出错', error)
           notificationService.showNotification({
             title: 'PagerDuty Alert',
             body: '无法验证 API 密钥，请检查网络连接',
@@ -59,7 +60,7 @@ export class SettingsWindow {
     if (!apiKey) return false
 
     try {
-      console.log('验证 API 密钥...')
+      logService.info('验证 API 密钥')
       const response = await fetch('https://api.pagerduty.com/users/me', {
         headers: {
           'Accept': 'application/vnd.pagerduty+json;version=2',
@@ -68,11 +69,11 @@ export class SettingsWindow {
       })
 
       const isValid = response.ok
-      console.log('API 密钥验证结果:', { isValid, status: response.status })
+      logService.info('API 密钥验证结果', { isValid, status: response.status })
       return isValid
       
     } catch (error) {
-      console.error('API 密钥验证请求失败:', error)
+      logService.error('API 密钥验证请求失败', error)
       throw error
     }
   }
@@ -109,7 +110,7 @@ export class SettingsWindow {
     const htmlPath = isDev
       ? path.join(process.cwd(), 'dist', 'settings.html')
       : path.join(app.getAppPath(), 'dist', 'settings.html')
-    console.log('加载设置页面:', htmlPath, '是否开发环境:', isDev)
+    logService.info('加载设置页面', { htmlPath, isDev })
     this.window.loadFile(htmlPath)
 
     // 开发环境打开开发者工具
@@ -134,12 +135,12 @@ export class SettingsWindow {
 
     // 监听页面加载完成事件
     this.window.webContents.on('did-finish-load', () => {
-      console.log('设置页面加载完成')
+      logService.info('设置页面加载完成')
     })
 
     // 监听页面加载失败事件
     this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-      console.error('设置页面加载失败:', errorCode, errorDescription)
+      logService.error('设置页面加载失败', { errorCode, errorDescription })
     })
 
     this.window.once('ready-to-show', () => {
@@ -181,7 +182,7 @@ export class SettingsWindow {
         this.window.destroy()
         this.window = null
       } catch (error) {
-        console.error('清理设置窗口时出错:', error)
+        logService.error('清理设置窗口时出错', error)
       }
     }
   }

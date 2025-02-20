@@ -1,5 +1,6 @@
 import { BrowserWindow, app } from 'electron'
 import * as path from 'path'
+import { logService } from '../../services/LogService'
 
 export class LogViewerWindow {
   private static instance: LogViewerWindow | null = null
@@ -43,7 +44,7 @@ export class LogViewerWindow {
       ? path.join(process.cwd(), 'dist', 'logviewer.html')
       : path.join(app.getAppPath(), 'dist', 'logviewer.html')
 
-    console.log('加载日志查看页面:', htmlPath)
+    logService.info('加载日志查看页面', { htmlPath })
     this.window.loadFile(htmlPath)
 
     if (isDev) {
