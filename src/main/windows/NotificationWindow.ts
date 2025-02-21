@@ -12,10 +12,19 @@ interface NotificationData {
   onClose?: () => void
 }
 
+interface PendingNotifications {
+  high: NotificationData[]
+  low: NotificationData[]
+}
+
 export class NotificationWindow {
   private static instance: NotificationWindow | null = null
   private window: BrowserWindow | null = null
   private queue: NotificationData[] = []
+  private pendingNotifications: PendingNotifications = {
+    high: [],
+    low: []
+  }
   private isShowing = false
   private config = {
     criticalPersistent: true
@@ -35,6 +44,9 @@ export class NotificationWindow {
       this.window = null
       this.queue.shift()
       this.isShowing = false
+
+      // 处理待显示的通知
+      this.processPendingNotifications()
       this.processQueue()
     })
 
@@ -74,6 +86,45 @@ export class NotificationWindow {
     this.config = config
   }
 
+  private processPendingNotifications() {
+    const { high, low } = this.pendingNotifications
+    if (high.length > 0 || low.length > 0) {
+      logService.info('处理待显示的通知', {
+        highCount: high.length,
+        lowCount: low.length
+      })
+
+      // 清空待显示通知
+      this.pendingNotifications = { high: [], low: [] }
+
+      // 添加高优先级分组通知
+      if (high.length > 0) {
+        this.queue.push({
+          id: Math.random().toString(36).substr(2, 9),
+          title: '新告警通知',
+          body: `${high.length} 个高优先级告警`,
+          urgency: 'high',
+          isPersistent: this.config.criticalPersistent,
+          onClick: high[0].onClick,
+          onClose: high[0].onClose
+        })
+      }
+
+      // 添加低优先级分组通知
+      if (low.length > 0) {
+        this.queue.push({
+          id: Math.random().toString(36).substr(2, 9),
+          title: '新告警通知',
+          body: `${low.length} 个低优先级告警`,
+          urgency: 'low',
+          isPersistent: false,
+          onClick: low[0].onClick,
+          onClose: low[0].onClose
+        })
+      }
+    }
+  }
+
   public show(data: Omit<NotificationData, 'id'>) {
     logService.info('NotificationWindow.show 被调用', {
       data,
@@ -84,15 +135,20 @@ export class NotificationWindow {
     
     const id = Math.random().toString(36).substr(2, 9)
     const isPersistent = data.urgency === 'high' && this.config.criticalPersistent
-    
-    logService.info('通知持久化状态', {
-      urgency: data.urgency,
-      criticalPersistent: this.config.criticalPersistent,
-      isPersistent
-    })
-    
-    logService.info('添加通知到队列', { id, isPersistent, data })
-    this.queue.push({ ...data, id, isPersistent })
+    const notification = { ...data, id, isPersistent }
+
+    // 如果当前有通知显示，将新通知加入待显示队列
+    if (this.isShowing) {
+      logService.info('当前有通知显示，加入待显示队列', {
+        urgency: data.urgency
+      })
+      this.pendingNotifications[data.urgency].push(notification)
+      return
+    }
+
+    // 否则直接显示
+    logService.info('直接显示通知', notification)
+    this.queue.push(notification)
     this.processQueue()
   }
 
