@@ -24,7 +24,7 @@ export class PagerDutyMenuBar {
   private isPollingInitialized = false
   private lastValidIncidents: Incident[] = []
   private notificationWindow: NotificationWindow | null = null
-  private lastIncidentIds: Set<string> = new Set()
+  private lastNotifiedIncidentId: string = '-1'
   private lastCheckedTime: string = new Date().toISOString()
   private appStartTime: string = new Date().toISOString()
   private pendingNotifications = {
@@ -51,7 +51,6 @@ export class PagerDutyMenuBar {
       
       this.appStartTime = new Date().toISOString()
       this.lastCheckedTime = this.appStartTime
-      this.lastIncidentIds = new Set()
       
       logService.info('PagerDutyMenuBar 初始化成功', { 
         appStartTime: this.appStartTime,
@@ -248,13 +247,9 @@ export class PagerDutyMenuBar {
 
   private resetIncidentState() {
     logService.info('重置告警状态')
-    this.lastIncidentIds = new Set()
+    this.lastNotifiedIncidentId = '-1'
     this.lastValidIncidents = []
     this.lastCheckedTime = new Date().toISOString()
-    this.pendingNotifications = {
-      high: 0,
-      low: 0
-    }
   }
 
   private async validateApiKey() {
@@ -1032,9 +1027,45 @@ export class PagerDutyMenuBar {
         }
       })
 
-      // 更新最后检查时间
-      this.lastCheckedTime = new Date().toISOString()
-      
+      // 检查新告警并发送通知
+      if (incidents.length > 0 && config.notification?.enabled) {
+        const lastNotifiedIndex = incidents.findIndex(i => i.id === this.lastNotifiedIncidentId)
+        const newIncidents = incidents.slice(0, lastNotifiedIndex === -1 ? incidents.length : lastNotifiedIndex)
+        const newTriggeredIncidents = newIncidents.filter(i => i.status === 'triggered')
+
+        if (newTriggeredIncidents.length > 0) {
+          logService.info('发现新告警', { 
+            count: newTriggeredIncidents.length,
+            lastNotifiedId: this.lastNotifiedIncidentId,
+            firstNewIncidentId: newTriggeredIncidents[0].id
+          })
+
+          // 更新最后通知的告警ID
+          this.lastNotifiedIncidentId = incidents[0].id
+          
+          // 根据配置决定是否分组通知
+          if (config.notification?.grouping) {
+            notificationService.showIncidentsGroupNotification(
+              newTriggeredIncidents,
+              () => {
+                this.window?.show()
+                this.window?.focus()
+              }
+            )
+          } else {
+            newTriggeredIncidents.forEach(incident => {
+              notificationService.showIncidentNotification(
+                incident,
+                () => {
+                  this.window?.show()
+                  this.window?.focus()
+                }
+              )
+            })
+          }
+        }
+      }
+
       return incidents
     } catch (error) {
       logService.error('[fetchIncidents] 获取告警出错', error)
