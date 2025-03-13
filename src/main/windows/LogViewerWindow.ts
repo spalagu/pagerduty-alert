@@ -17,7 +17,7 @@ export class LogViewerWindow {
 
   public show() {
     if (this.window) {
-      this.window.show()
+      this.window.showInactive()
       return
     }
 
@@ -52,7 +52,7 @@ export class LogViewerWindow {
     }
 
     this.window.once('ready-to-show', () => {
-      this.window?.show()
+      this.window?.showInactive()
     })
 
     this.window.on('closed', () => {

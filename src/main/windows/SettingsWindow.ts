@@ -144,7 +144,7 @@ export class SettingsWindow {
     })
 
     this.window.once('ready-to-show', () => {
-      this.window?.show()
+      this.window?.showInactive()
     })
   }
 
@@ -152,7 +152,7 @@ export class SettingsWindow {
     if (!this.window) {
       this.createWindow()
     } else {
-      this.window.show()
+      this.window.showInactive()
     }
   }
 

@@ -473,11 +473,7 @@ export class PagerDutyMenuBar {
       {
         label: '设置',
         click: () => {
-          if (this.window) {
-            this.window.webContents.send('show-settings')
-            this.window.show()
-            this.window.focus()
-          }
+          this.settingsWindow?.show()
         }
       },
       { type: 'separator' },
@@ -1048,8 +1044,7 @@ export class PagerDutyMenuBar {
             notificationService.showIncidentsGroupNotification(
               newTriggeredIncidents,
               () => {
-                this.window?.show()
-                this.window?.focus()
+                this.window?.showInactive()
               }
             )
           } else {
@@ -1057,8 +1052,7 @@ export class PagerDutyMenuBar {
               notificationService.showIncidentNotification(
                 incident,
                 () => {
-                  this.window?.show()
-                  this.window?.focus()
+                  this.window?.showInactive()
                 }
               )
             })
@@ -1101,7 +1095,7 @@ export class PagerDutyMenuBar {
           urgency: 'high',
           onClick: () => {
             logService.info('通知被点击，显示主窗口')
-            this.window?.show()
+            this.window?.showInactive()
           },
           onClose: () => {
             logService.info('高优先级通知被关闭')
@@ -1113,7 +1107,7 @@ export class PagerDutyMenuBar {
                 body: `${this.pendingNotifications.low} 个低优先级告警`,
                 urgency: 'low',
                 onClick: () => {
-                  this.window?.show()
+                  this.window?.showInactive()
                 },
                 onClose: () => {
                   logService.info('低优先级通知被关闭')
@@ -1134,7 +1128,7 @@ export class PagerDutyMenuBar {
           body: `${this.pendingNotifications.low} 个低优先级告警`,
           urgency: 'low',
           onClick: () => {
-            this.window?.show()
+            this.window?.showInactive()
           },
           onClose: () => {
             logService.info('低优先级通知被关闭')

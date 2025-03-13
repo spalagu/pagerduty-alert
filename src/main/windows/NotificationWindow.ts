@@ -214,6 +214,7 @@ export class NotificationWindow {
       skipTaskbar: true,
       alwaysOnTop: true,
       focusable: false,
+      show: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -228,7 +229,7 @@ export class NotificationWindow {
     logService.info('加载通知页面', { htmlPath })
     this.window.loadFile(htmlPath)
     
-    // 等待页面加载完成后发送数据
+    // 等待页面加载完成后发送数据并显示窗口
     this.window.webContents.on('did-finish-load', () => {
       logService.info('通知页面加载完成，发送数据')
       // 创建一个新的对象，只包含可序列化的数据
@@ -241,6 +242,9 @@ export class NotificationWindow {
       }
       logService.info('发送序列化后的通知数据', serializableData)
       this.window?.webContents.send('notification-data', serializableData)
+      
+      // 使用showInactive方法显示窗口，不激活/聚焦它
+      this.window?.showInactive()
     })
 
     // 添加错误处理
