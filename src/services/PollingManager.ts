@@ -5,11 +5,13 @@ type PollingState = 'idle' | 'polling' | 'error' | 'cleanup'
 export class PollingManager {
   private static instance: PollingManager | null = null
   private timer: NodeJS.Timeout | null = null
+  private timeoutTimer: NodeJS.Timeout | null = null
   private state: PollingState = 'idle'
   private currentInterval: number | null = null
   private currentCallback: (() => Promise<void>) | null = null
   private lastFetchStartTime: number | null = null
   private lastError: Error | null = null
+  private readonly MAX_POLL_DURATION = 5 * 60 * 1000 // 5分钟超时
 
   private constructor() {
     logService.info('[PollingManager] 实例化')
@@ -28,7 +30,7 @@ export class PollingManager {
       to: newState,
       currentInterval: this.currentInterval,
       hasCallback: !!this.currentCallback,
-      lastFetchStartTime: this.lastFetchStartTime,
+      lastFetchStartTime: this.lastFetchStartTime ? new Date(this.lastFetchStartTime).toISOString() : null,
       lastError: this.lastError?.message
     })
     this.state = newState
@@ -87,13 +89,41 @@ export class PollingManager {
       return
     }
 
-    // 防止并发执行
+    // 检查上次轮询是否超时
     if (this.lastFetchStartTime !== null) {
-      logService.info('[PollingManager] 上一次轮询尚未完成，跳过本次执行', {
-        lastFetchStartTime: new Date(this.lastFetchStartTime).toISOString()
-      })
-      return
+      const now = Date.now()
+      const duration = now - this.lastFetchStartTime
+      
+      if (duration > this.MAX_POLL_DURATION) {
+        logService.error('[PollingManager] 检测到上次轮询超时，强制重置状态', {
+          lastFetchStartTime: new Date(this.lastFetchStartTime).toISOString(),
+          duration,
+          maxDuration: this.MAX_POLL_DURATION
+        })
+        this.lastFetchStartTime = null
+      } else {
+        logService.info('[PollingManager] 上一次轮询尚未完成，跳过本次执行', {
+          lastFetchStartTime: new Date(this.lastFetchStartTime).toISOString(),
+          duration
+        })
+        return
+      }
     }
+
+    // 设置超时定时器
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer)
+    }
+    
+    this.timeoutTimer = setTimeout(() => {
+      if (this.lastFetchStartTime !== null) {
+        logService.error('[PollingManager] 轮询执行超时，强制重置状态', {
+          lastFetchStartTime: new Date(this.lastFetchStartTime).toISOString(),
+          maxDuration: this.MAX_POLL_DURATION
+        })
+        this.lastFetchStartTime = null
+      }
+    }, this.MAX_POLL_DURATION)
 
     try {
       this.lastFetchStartTime = Date.now()
@@ -117,6 +147,11 @@ export class PollingManager {
       this.setState('error')
       logService.error('[PollingManager] 轮询执行失败:', error)
     } finally {
+      // 清除超时定时器
+      if (this.timeoutTimer) {
+        clearTimeout(this.timeoutTimer)
+        this.timeoutTimer = null
+      }
       this.lastFetchStartTime = null
     }
   }
@@ -124,12 +159,18 @@ export class PollingManager {
   public stop() {
     logService.info('[PollingManager] 停止轮询', {
       currentState: this.state,
-      hasTimer: !!this.timer
+      hasTimer: !!this.timer,
+      hasTimeoutTimer: !!this.timeoutTimer
     })
 
     if (this.timer) {
       clearInterval(this.timer)
       this.timer = null
+    }
+
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer)
+      this.timeoutTimer = null
     }
 
     this.setState('idle')
@@ -142,13 +183,19 @@ export class PollingManager {
   public cleanup() {
     logService.info('[PollingManager] 清理资源', {
       currentState: this.state,
-      hasTimer: !!this.timer
+      hasTimer: !!this.timer,
+      hasTimeoutTimer: !!this.timeoutTimer
     })
     
     this.setState('cleanup')
     if (this.timer) {
       clearInterval(this.timer)
       this.timer = null
+    }
+    
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer)
+      this.timeoutTimer = null
     }
     
     this.currentInterval = null
