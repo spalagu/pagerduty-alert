@@ -58,6 +58,20 @@ export class NotificationWindow {
         logService.info('执行通知点击回调')
         currentNotification.onClick()
       }
+      
+      // 点击后关闭通知窗口
+      if (currentNotification?.onClose) {
+        logService.info('执行通知关闭回调')
+        currentNotification.onClose()
+      }
+      this.window?.close()
+      this.window = null
+      this.queue.shift()
+      this.isShowing = false
+
+      // 处理待显示的通知
+      this.processPendingNotifications()
+      this.processQueue()
     })
   }
 
